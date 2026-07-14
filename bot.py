@@ -41,6 +41,7 @@ def simpan_data():
 
 data = muat_data()
 sedang_purge = set()
+WAKTU_MULAI = None
 
 intents = discord.Intents.default()
 intents.presences = True
@@ -388,11 +389,14 @@ async def on_presence_update(before, after):
     else:
         if lagu_terakhir is None:
             return
-        lagu_terakhir = None
+         lagu_terakhir = None
         await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Musik"))
 
 @client.event
 async def on_ready():
+global WAKTU_MULAI
+    if WAKTU_MULAI is None:
+        WAKTU_MULAI = discord.utils.utcnow()
     await tree.sync()
     for br in data.get("button_roles", []):
         client.add_view(DynamicRoleView(br["role_id"], br["label"]), message_id=br["message_id"])
@@ -414,7 +418,48 @@ async def isi_cc(interaction: discord.Interaction, current: str):
     daftar = data["custom_commands"].get(str(interaction.guild_id), {})
     cocok = [n for n in sorted(daftar) if current.lower() in n]
     return [app_commands.Choice(name=n, value=n) for n in cocok[:25]]
+async def kabari_pemilik(judul, guild, warna):
+    try:
+        pemilik = await client.fetch_user(PEMILIK_ID)
+    except Exception:
+        return
+    embed = discord.Embed(title=judul, color=warna, timestamp=discord.utils.utcnow())
+    embed.add_field(name="Server", value=f"{guild.name} ({guild.id})", inline=False)
+    embed.add_field(name="Member", value=str(guild.member_count or 0))
+    embed.add_field(name="Total server sekarang", value=str(len(client.guilds)))
+    try:
+        await pemilik.send(embed=embed)
+    except Exception:
+        pass
 
+@client.event
+async def on_guild_join(guild):
+    await kabari_pemilik("Bot masuk server baru", guild, discord.Color.green())
+
+@client.event
+async def on_guild_remove(guild):
+    await kabari_pemilik("Bot dikeluarkan dari server", guild, discord.Color.red())
+
+@tree.command(name="stats", description="Lihat statistik bot")
+async def stats(interaction: discord.Interaction):
+    total_server = len(client.guilds)
+    total_member = sum(g.member_count or 0 for g in client.guilds)
+    unik = len({m.id for g in client.guilds for m in g.members if not m.bot})
+    if WAKTU_MULAI:
+        detik = int((discord.utils.utcnow() - WAKTU_MULAI).total_seconds())
+        hari, sisa = divmod(detik, 86400)
+        jam, sisa = divmod(sisa, 3600)
+        menit = sisa // 60
+        uptime = f"{hari}h {jam}j {menit}m"
+    else:
+        uptime = "tidak diketahui"
+    embed = discord.Embed(title="Statistik bot", color=discord.Color.blurple(), timestamp=discord.utils.utcnow())
+    embed.add_field(name="Server", value=str(total_server))
+    embed.add_field(name="Total member", value=str(total_member))
+    embed.add_field(name="User unik", value=str(unik))
+    embed.add_field(name="Ping", value=f"{round(client.latency * 1000)} ms")
+    embed.add_field(name="Uptime", value=uptime)
+    await interaction.response.send_message(embed=embed)
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong! Bot aktif.")
