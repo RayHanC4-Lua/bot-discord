@@ -1,0 +1,6 @@
+.env
+bot_config.json
+cookies.txt
+unduhan/
+__pycache__/
+*.pyc
