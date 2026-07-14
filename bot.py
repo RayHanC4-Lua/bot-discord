@@ -74,6 +74,10 @@ class DynamicRoleView(discord.ui.View):
                 await interaction.response.send_message(f"Role **{role.name}** berhasil diambil.", ephemeral=True)
         except discord.Forbidden:
             await interaction.response.send_message("Gagal. Posisikan role Bot di atas role tersebut pada pengaturan server.", ephemeral=True)
+        except discord.NotFound:
+            await interaction.response.send_message("Role ini sudah dihapus dari server.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Gagal: {bersihkan_error(e)}", ephemeral=True)
 
 def bersihkan_error(e):
     return re.sub(r"\x1b\[[0-9;]*m", "", str(e))[:180]
@@ -389,12 +393,12 @@ async def on_presence_update(before, after):
     else:
         if lagu_terakhir is None:
             return
-         lagu_terakhir = None
+        lagu_terakhir = None
         await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Musik"))
 
 @client.event
 async def on_ready():
-global WAKTU_MULAI
+    global WAKTU_MULAI
     if WAKTU_MULAI is None:
         WAKTU_MULAI = discord.utils.utcnow()
     await tree.sync()
@@ -418,6 +422,7 @@ async def isi_cc(interaction: discord.Interaction, current: str):
     daftar = data["custom_commands"].get(str(interaction.guild_id), {})
     cocok = [n for n in sorted(daftar) if current.lower() in n]
     return [app_commands.Choice(name=n, value=n) for n in cocok[:25]]
+
 async def kabari_pemilik(judul, guild, warna):
     try:
         pemilik = await client.fetch_user(PEMILIK_ID)
@@ -460,6 +465,7 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Ping", value=f"{round(client.latency * 1000)} ms")
     embed.add_field(name="Uptime", value=uptime)
     await interaction.response.send_message(embed=embed)
+
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong! Bot aktif.")
@@ -628,7 +634,6 @@ async def buttonrole(interaction: discord.Interaction, role: discord.Role, pesan
         "label": label,
     })
     simpan_data()
-
 @tree.command(name="download", description="Download video atau mp3 dari link, atau cari lagu dari judulnya")
 async def download(interaction: discord.Interaction, url: str):
     if "spotify" in url.lower():
