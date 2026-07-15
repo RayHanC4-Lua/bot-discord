@@ -74,10 +74,6 @@ class DynamicRoleView(discord.ui.View):
                 await interaction.response.send_message(f"Role **{role.name}** berhasil diambil.", ephemeral=True)
         except discord.Forbidden:
             await interaction.response.send_message("Gagal. Posisikan role Bot di atas role tersebut pada pengaturan server.", ephemeral=True)
-        except discord.NotFound:
-            await interaction.response.send_message("Role ini sudah dihapus dari server.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"Gagal: {bersihkan_error(e)}", ephemeral=True)
 
 def bersihkan_error(e):
     return re.sub(r"\x1b\[[0-9;]*m", "", str(e))[:180]
@@ -466,6 +462,90 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Uptime", value=uptime)
     await interaction.response.send_message(embed=embed)
 
+STRUKTUR_SETUP = {
+    "INFORMASI": ["pengumuman", "peraturan", "role-info"],
+    "KOMUNITAS": ["obrolan-umum", "media-sharing", "santai"],
+    "JUALAN": ["katalog", "cara-order", "testimoni", "open-order"],
+    "UJI BOT": ["perintah-bot", "log-bot"],
+}
+ROLE_SETUP = [
+    ("Admin", discord.Color.red(), True),
+    ("Moderator", discord.Color.orange(), True),
+    ("Member", discord.Color.blue(), False),
+    ("Pembeli", discord.Color.green(), False),
+]
+
+@tree.command(name="setup", description="Buat struktur channel dan role untuk komunitas, jualan, dan uji bot")
+@app_commands.checks.has_permissions(administrator=True)
+async def setup(interaction: discord.Interaction):
+    if not interaction.guild.me.guild_permissions.manage_channels or not interaction.guild.me.guild_permissions.manage_roles:
+        await interaction.response.send_message("Bot butuh izin Manage Channels dan Manage Roles. Aktifkan dulu di pengaturan server.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    dibuat = []
+    for nama, warna, terpisah in ROLE_SETUP:
+        ada = discord.utils.get(guild.roles, name=nama)
+        if ada is None:
+            try:
+                await guild.create_role(name=nama, color=warna, hoist=terpisah, reason="setup bot")
+                dibuat.append(f"role {nama}")
+            except Exception:
+                pass
+    for nama_kat, daftar_channel in STRUKTUR_SETUP.items():
+        kategori = discord.utils.get(guild.categories, name=nama_kat)
+        if kategori is None:
+            try:
+                kategori = await guild.create_category(nama_kat, reason="setup bot")
+                dibuat.append(f"kategori {nama_kat}")
+            except Exception:
+                continue
+        for nama_ch in daftar_channel:
+            sudah_ada = discord.utils.get(kategori.channels, name=nama_ch)
+            if sudah_ada is None:
+                try:
+                    await guild.create_text_channel(nama_ch, category=kategori, reason="setup bot")
+                    dibuat.append(f"channel {nama_ch}")
+                except Exception:
+                    pass
+    if dibuat:
+        ringkas = "\n".join(dibuat[:40])
+        await interaction.followup.send(f"Setup selesai. Yang dibuat:\n{ringkas}", ephemeral=True)
+    else:
+        await interaction.followup.send("Semua struktur sudah ada, tidak ada yang perlu dibuat.", ephemeral=True)
+
+@tree.command(name="hapussetup", description="Hapus channel dan role yang dibuat oleh setup")
+@app_commands.checks.has_permissions(administrator=True)
+async def hapussetup(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild = interaction.guild
+    dihapus = 0
+    nama_channel = {c for daftar in STRUKTUR_SETUP.values() for c in daftar}
+    nama_kategori = set(STRUKTUR_SETUP.keys())
+    nama_role = {r[0] for r in ROLE_SETUP}
+    for channel in list(guild.channels):
+        if channel.name in nama_channel and not isinstance(channel, discord.CategoryChannel):
+            try:
+                await channel.delete(reason="hapus setup")
+                dihapus += 1
+            except Exception:
+                pass
+    for kategori in list(guild.categories):
+        if kategori.name in nama_kategori:
+            try:
+                await kategori.delete(reason="hapus setup")
+                dihapus += 1
+            except Exception:
+                pass
+    for role in list(guild.roles):
+        if role.name in nama_role and role < guild.me.top_role:
+            try:
+                await role.delete(reason="hapus setup")
+                dihapus += 1
+            except Exception:
+                pass
+    await interaction.followup.send(f"{dihapus} channel, kategori, dan role hasil setup dihapus.", ephemeral=True)
+
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong! Bot aktif.")
@@ -634,6 +714,7 @@ async def buttonrole(interaction: discord.Interaction, role: discord.Role, pesan
         "label": label,
     })
     simpan_data()
+
 @tree.command(name="download", description="Download video atau mp3 dari link, atau cari lagu dari judulnya")
 async def download(interaction: discord.Interaction, url: str):
     if "spotify" in url.lower():
