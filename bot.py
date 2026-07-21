@@ -37,6 +37,8 @@ def muat_data():
     isi.setdefault("welcome", {})
     isi.setdefault("autorole", {})
     isi.setdefault("antispam", {})
+    isi.setdefault("harga", {})
+    isi.setdefault("sticky", {})
     return isi
 
 def simpan_data():
@@ -314,6 +316,21 @@ async def kirim_log(guild, embed):
 async def on_message(message):
     if message.author.bot or message.guild is None:
         return
+    info_sticky = data["sticky"].get(str(message.channel.id))
+    if info_sticky:
+        try:
+            if info_sticky.get("terakhir"):
+                try:
+                    lama = await message.channel.fetch_message(int(info_sticky["terakhir"]))
+                    await lama.delete()
+                except Exception:
+                    pass
+            embed_sticky = discord.Embed(description=info_sticky["pesan"], color=discord.Color.blurple())
+            baru = await message.channel.send(embed=embed_sticky)
+            info_sticky["terakhir"] = baru.id
+            simpan_data()
+        except Exception:
+            pass
     menit = data["antispam"].get(str(message.guild.id), 0)
     if not menit:
         return
@@ -677,7 +694,29 @@ class TiketCloseView(discord.ui.View):
         if not (interaction.user.guild_permissions.manage_channels or pemilik_ok):
             await interaction.response.send_message("Hanya admin atau pembuat tiket yang bisa menutup tiket ini.", ephemeral=True)
             return
-        await interaction.response.send_message("Tiket akan ditutup dalam 5 detik.")
+        await interaction.response.send_message("Menyimpan transcript, tiket ditutup dalam 5 detik.")
+        try:
+            baris = []
+            async for pesan in channel.history(limit=500, oldest_first=True):
+                waktu = pesan.created_at.strftime("%Y-%m-%d %H:%M")
+                isi_pesan = pesan.content or ""
+                if pesan.embeds:
+                    isi_pesan += " [embed]"
+                if pesan.attachments:
+                    isi_pesan += " " + " ".join(a.url for a in pesan.attachments)
+                baris.append(f"[{waktu}] {pesan.author}: {isi_pesan}")
+            teks_transcript = "\n".join(baris) if baris else "Tiket kosong."
+            berkas = discord.File(io.BytesIO(teks_transcript.encode("utf-8")), filename=f"transcript-{channel.name}.txt")
+            embed_log = discord.Embed(title="Transcript tiket", color=discord.Color.dark_grey(), timestamp=discord.utils.utcnow())
+            embed_log.add_field(name="Channel", value=channel.name, inline=False)
+            embed_log.add_field(name="Ditutup oleh", value=interaction.user.mention)
+            id_log = data["log_channels"].get(str(channel.guild.id))
+            if id_log:
+                ch_log = channel.guild.get_channel(int(id_log))
+                if ch_log:
+                    await ch_log.send(embed=embed_log, file=berkas)
+        except Exception:
+            pass
         await asyncio.sleep(5)
         try:
             await channel.delete(reason="tiket ditutup")
@@ -692,6 +731,87 @@ async def tiketpanel(interaction: discord.Interaction):
     embed.add_field(name="Website Services", value="Order jasa pembuatan website", inline=False)
     embed.add_field(name="General Discussion", value="Tanya-tanya atau diskusi umum", inline=False)
     await interaction.response.send_message(embed=embed, view=TiketPanelView())
+
+class TestiModal(discord.ui.Modal, title="Kirim Testimoni"):
+    def __init__(self, channel_target):
+        super().__init__()
+        self.channel_target = channel_target
+
+    rating = discord.ui.TextInput(label="Rating 1 sampai 5", placeholder="contoh: 5", max_length=1)
+    komentar = discord.ui.TextInput(label="Komentar", style=discord.TextStyle.paragraph, max_length=500)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            angka = int(str(self.rating))
+        except Exception:
+            angka = 0
+        angka = max(0, min(5, angka))
+        bintang = "★" * angka + "☆" * (5 - angka)
+        embed = discord.Embed(description=str(self.komentar), color=discord.Color.gold(), timestamp=discord.utils.utcnow())
+        embed.set_author(name=str(interaction.user), icon_url=interaction.user.display_avatar.url)
+        embed.add_field(name="Rating", value=f"{bintang} ({angka}/5)")
+        try:
+            await self.channel_target.send(embed=embed)
+            await interaction.response.send_message("Terima kasih, testimoni kamu sudah dikirim.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Gagal mengirim: {bersihkan_error(e)}", ephemeral=True)
+
+@tree.command(name="testi", description="Kirim testimoni ke channel ini")
+async def testi(interaction: discord.Interaction):
+    await interaction.response.send_modal(TestiModal(interaction.channel))
+
+@tree.command(name="hargaset", description="Tambah atau ubah harga sebuah item")
+@app_commands.describe(item="Nama item, contoh: 1000 Robux VILOG", harga="Harga, contoh: Rp 130.000")
+@app_commands.checks.has_permissions(administrator=True)
+async def hargaset(interaction: discord.Interaction, item: str, harga: str):
+    gid = str(interaction.guild_id)
+    data["harga"].setdefault(gid, {})[item[:80]] = harga[:80]
+    simpan_data()
+    await interaction.response.send_message(f"Harga disimpan: {item} = {harga}", ephemeral=True)
+
+@tree.command(name="hargahapus", description="Hapus satu item dari daftar harga")
+@app_commands.checks.has_permissions(administrator=True)
+async def hargahapus(interaction: discord.Interaction, item: str):
+    gid = str(interaction.guild_id)
+    daftar = data["harga"].get(gid, {})
+    if item not in daftar:
+        await interaction.response.send_message("Item itu tidak ada di daftar harga.", ephemeral=True)
+        return
+    daftar.pop(item)
+    simpan_data()
+    await interaction.response.send_message(f"Item {item} dihapus dari daftar harga.", ephemeral=True)
+
+@tree.command(name="harga", description="Lihat daftar harga")
+async def harga(interaction: discord.Interaction):
+    gid = str(interaction.guild_id)
+    daftar = data["harga"].get(gid, {})
+    if not daftar:
+        await interaction.response.send_message("Daftar harga masih kosong.")
+        return
+    embed = discord.Embed(title="Daftar Harga", color=discord.Color.green(), timestamp=discord.utils.utcnow())
+    for item, nilai in list(daftar.items())[:25]:
+        embed.add_field(name=item, value=nilai, inline=False)
+    await interaction.response.send_message(embed=embed)
+
+@tree.command(name="stickyset", description="Pasang pesan sticky yang selalu muncul di bawah channel ini")
+@app_commands.checks.has_permissions(administrator=True)
+async def stickyset(interaction: discord.Interaction, pesan: str):
+    data["sticky"][str(interaction.channel_id)] = {"pesan": pesan, "terakhir": None}
+    simpan_data()
+    await interaction.response.send_message("Sticky message dipasang di channel ini.", ephemeral=True)
+
+@tree.command(name="stickyhapus", description="Matikan pesan sticky di channel ini")
+@app_commands.checks.has_permissions(administrator=True)
+async def stickyhapus(interaction: discord.Interaction):
+    info = data["sticky"].pop(str(interaction.channel_id), None)
+    simpan_data()
+    if info and info.get("terakhir"):
+        try:
+            lama = await interaction.channel.fetch_message(int(info["terakhir"]))
+            await lama.delete()
+        except Exception:
+            pass
+    await interaction.response.send_message("Sticky message dimatikan.", ephemeral=True)
 
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
