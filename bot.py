@@ -609,12 +609,9 @@ async def hapussetup(interaction: discord.Interaction):
     await interaction.followup.send(f"{dihapus} channel, kategori, dan role hasil setup dihapus.", ephemeral=True)
 
 TIKET_TIPE = [
-    ("vilog", "Robux VILOG"),
-    ("gig", "Robux GIG"),
-    ("community", "Robux Community"),
-    ("limited", "Limited Item"),
-    ("jasa", "Order Jasa Website"),
-    ("diskusi", "Diskusi Umum"),
+    ("topup", "Topup Robux"),
+    ("website", "Website Services"),
+    ("diskusi", "General Discussion"),
 ]
 
 async def buka_tiket(interaction, kode, label):
@@ -691,9 +688,9 @@ class TiketCloseView(discord.ui.View):
 @app_commands.checks.has_permissions(administrator=True)
 async def tiketpanel(interaction: discord.Interaction):
     embed = discord.Embed(title="Order dan Diskusi", description="Klik tombol sesuai kebutuhanmu untuk membuka tiket privat yang hanya bisa dilihat kamu dan admin.", color=discord.Color.blurple())
-    embed.add_field(name="Jualan Robux", value="VILOG, GIG, Community, Limited Item", inline=False)
-    embed.add_field(name="Jasa", value="Order Jasa Website", inline=False)
-    embed.add_field(name="Lainnya", value="Diskusi Umum untuk tanya-tanya", inline=False)
+    embed.add_field(name="Topup Robux", value="Beli Robux di sini", inline=False)
+    embed.add_field(name="Website Services", value="Order jasa pembuatan website", inline=False)
+    embed.add_field(name="General Discussion", value="Tanya-tanya atau diskusi umum", inline=False)
     await interaction.response.send_message(embed=embed, view=TiketPanelView())
 
 @tree.command(name="ping", description="Cek apakah bot aktif")
