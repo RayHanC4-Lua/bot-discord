@@ -261,20 +261,20 @@ def buat_banner(nama, urutan, avatar_bytes):
         bg = Image.new("RGB", (lebar, tinggi), (30, 30, 40))
     gambar = ImageDraw.Draw(bg)
 
-    ukuran_foto = 180
+    ukuran_foto = 150
     foto = Image.open(io.BytesIO(avatar_bytes)).convert("RGB").resize((ukuran_foto, ukuran_foto))
     topeng = Image.new("L", (ukuran_foto, ukuran_foto), 0)
     ImageDraw.Draw(topeng).ellipse((0, 0, ukuran_foto, ukuran_foto), fill=255)
     pos_x = (lebar - ukuran_foto) // 2
-    pos_y = 50
-    cincin = 6
+    pos_y = 30
+    cincin = 7
     gambar.ellipse((pos_x - cincin, pos_y - cincin, pos_x + ukuran_foto + cincin, pos_y + ukuran_foto + cincin), fill=(255, 255, 255))
     bg.paste(foto, (pos_x, pos_y), topeng)
 
     try:
-        font_besar = ImageFont.truetype(FILE_FONT, 64)
-        font_nama = ImageFont.truetype(FILE_FONT, 40)
-        font_kecil = ImageFont.truetype(FILE_FONT, 28)
+        font_besar = ImageFont.truetype(FILE_FONT, 100)
+        font_nama = ImageFont.truetype(FILE_FONT, 58)
+        font_kecil = ImageFont.truetype(FILE_FONT, 38)
     except Exception:
         font_besar = ImageFont.load_default()
         font_nama = ImageFont.load_default()
@@ -284,12 +284,12 @@ def buat_banner(nama, urutan, avatar_bytes):
         kotak = gambar.textbbox((0, 0), teks, font=font)
         lebar_teks = kotak[2] - kotak[0]
         x = (lebar - lebar_teks) // 2
-        gambar.text((x + 2, y + 2), teks, font=font, fill=(0, 0, 0))
+        gambar.text((x + 3, y + 3), teks, font=font, fill=(0, 0, 0))
         gambar.text((x, y), teks, font=font, fill=warna)
 
-    tulis_tengah("WELCOME", font_besar, 255)
+    tulis_tengah("WELCOME", font_besar, 215)
     tulis_tengah(nama[:20], font_nama, 320, (255, 220, 120))
-    tulis_tengah(f"Member ke-{urutan}", font_kecil, 365)
+    tulis_tengah(f"Member ke-{urutan}", font_kecil, 355)
 
     hasil = io.BytesIO()
     bg.save(hasil, format="PNG")
