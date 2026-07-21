@@ -9,6 +9,8 @@ import discord
 from discord import app_commands
 from dotenv import load_dotenv
 import yt_dlp
+import io
+from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
 os.makedirs("unduhan", exist_ok=True)
@@ -17,6 +19,8 @@ PEMILIK_ID = 1438447727477391381
 TINGKAT_VIDEO = [720, 480, 360, 240, 144]
 TINGKAT_AUDIO = [192, 128, 96, 64]
 CONFIG_FILE = os.getenv("CONFIG_PATH", "bot_config.json")
+FILE_BG = "background.png"
+FILE_FONT = "font.ttf"
 POLA_LINK = re.compile(r"(https?://|discord\.gg/|www\.)", re.IGNORECASE)
 
 def muat_data():
@@ -249,6 +253,49 @@ class PilihFormat(discord.ui.View):
     async def audio(self, interaction: discord.Interaction, tombol: discord.ui.Button):
         await self.jalankan(interaction, True, 192)
 
+def buat_banner(nama, urutan, avatar_bytes):
+    lebar, tinggi = 1024, 400
+    if os.path.exists(FILE_BG):
+        bg = Image.open(FILE_BG).convert("RGB").resize((lebar, tinggi))
+    else:
+        bg = Image.new("RGB", (lebar, tinggi), (30, 30, 40))
+    gambar = ImageDraw.Draw(bg)
+
+    ukuran_foto = 180
+    foto = Image.open(io.BytesIO(avatar_bytes)).convert("RGB").resize((ukuran_foto, ukuran_foto))
+    topeng = Image.new("L", (ukuran_foto, ukuran_foto), 0)
+    ImageDraw.Draw(topeng).ellipse((0, 0, ukuran_foto, ukuran_foto), fill=255)
+    pos_x = (lebar - ukuran_foto) // 2
+    pos_y = 50
+    cincin = 6
+    gambar.ellipse((pos_x - cincin, pos_y - cincin, pos_x + ukuran_foto + cincin, pos_y + ukuran_foto + cincin), fill=(255, 255, 255))
+    bg.paste(foto, (pos_x, pos_y), topeng)
+
+    try:
+        font_besar = ImageFont.truetype(FILE_FONT, 64)
+        font_nama = ImageFont.truetype(FILE_FONT, 40)
+        font_kecil = ImageFont.truetype(FILE_FONT, 28)
+    except Exception:
+        font_besar = ImageFont.load_default()
+        font_nama = ImageFont.load_default()
+        font_kecil = ImageFont.load_default()
+
+    def tulis_tengah(teks, font, y, warna=(255, 255, 255)):
+        kotak = gambar.textbbox((0, 0), teks, font=font)
+        lebar_teks = kotak[2] - kotak[0]
+        x = (lebar - lebar_teks) // 2
+        gambar.text((x + 2, y + 2), teks, font=font, fill=(0, 0, 0))
+        gambar.text((x, y), teks, font=font, fill=warna)
+
+    tulis_tengah("WELCOME", font_besar, 255)
+    tulis_tengah(nama[:20], font_nama, 320, (255, 220, 120))
+    tulis_tengah(f"Member ke-{urutan}", font_kecil, 365)
+
+    hasil = io.BytesIO()
+    bg.save(hasil, format="PNG")
+    hasil.seek(0)
+    return hasil
+
 async def kirim_log(guild, embed):
     if guild is None:
         return
@@ -343,8 +390,18 @@ async def on_member_join(member):
             teks = teks.replace("{user}", member.mention)
             teks = teks.replace("{server}", member.guild.name)
             teks = teks.replace("{jumlah}", str(member.guild.member_count))
+            berkas = None
             try:
-                await channel.send(teks[:2000])
+                avatar = await member.display_avatar.replace(size=256, format="png").read()
+                data_gambar = await asyncio.to_thread(buat_banner, member.display_name, member.guild.member_count, avatar)
+                berkas = discord.File(data_gambar, filename="welcome.png")
+            except Exception:
+                berkas = None
+            try:
+                if berkas:
+                    await channel.send(content=teks[:2000], file=berkas)
+                else:
+                    await channel.send(teks[:2000])
             except Exception:
                 pass
 
@@ -463,10 +520,13 @@ async def stats(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 STRUKTUR_SETUP = {
-    "INFORMASI": ["pengumuman", "peraturan", "role-info"],
-    "KOMUNITAS": ["obrolan-umum", "media-sharing", "santai"],
-    "JUALAN": ["katalog", "cara-order", "testimoni", "open-order"],
-    "UJI BOT": ["perintah-bot", "log-bot"],
+    "INFORMATION": ["portal", "announcement", "rules", "link-invite", "giveaway"],
+    "STOCK INFORMATION": ["flash-sale", "item-limited", "value-changes"],
+    "ROBUX": ["robux-vilog", "robux-community"],
+    "TRANSACTION": ["order", "cashout", "payment"],
+    "REPUTATION": ["rating-server", "leaderboard", "order-log"],
+    "TESTIMONI": ["testimoni-robux", "testimoni-limited", "testimoni-gift"],
+    "PUBLIC": ["chat", "bot-command", "market-public"],
 }
 ROLE_SETUP = [
     ("Admin", discord.Color.red(), True),
