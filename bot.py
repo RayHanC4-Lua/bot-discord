@@ -42,6 +42,7 @@ def muat_data():
     isi.setdefault("joinvoice", {})
     isi.setdefault("voice_sementara", [])
     isi.setdefault("color_panels", [])
+    isi.setdefault("gaya_nama", {})
     return isi
 
 def simpan_data():
@@ -560,6 +561,24 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Uptime", value=uptime)
     await interaction.response.send_message(embed=embed)
 
+GAYA_NAMA = {
+    "polos": {"kategori": "{n}", "teks": "{n}", "suara": "{n}"},
+    "bintang": {"kategori": "\u2726\u2501\u2501\u2501\u2501\u2501 \u22c6\uff61\u00b0\u2727 {n} \u2727\u00b0\uff61\u22c6 \u2501\u2501\u2501\u2501\u2501\u2726", "teks": "\u22c6\uff61\u00b0\u2727-{n}-\u2727\u00b0\uff61\u22c6", "suara": "\u22c6\uff61\u00b0\u2727 {n} \u2727\u00b0\uff61\u22c6"},
+    "lembut": {"kategori": "\u0b68\u0b67 \u22c6 {n} \u22c6 \u0b68\u0b67", "teks": "\u02da\u208a\u2027-{n}-\u2027\u208a\u02da", "suara": "\u02da\u208a\u2027 {n} \u2027\u208a\u02da"},
+    "tegas": {"kategori": "\u25b0\u25b0\u25b0\u25b0 {n} \u25b0\u25b0\u25b0\u25b0", "teks": "\u2317-{n}", "suara": "\u2317 {n}"},
+}
+
+def rias_nama(nama, jenis, gaya):
+    pola = GAYA_NAMA.get(gaya, GAYA_NAMA["polos"])[jenis]
+    return pola.format(n=nama)[:95]
+
+PILIHAN_GAYA = [
+    app_commands.Choice(name="Polos tanpa hiasan", value="polos"),
+    app_commands.Choice(name="Bintang", value="bintang"),
+    app_commands.Choice(name="Lembut", value="lembut"),
+    app_commands.Choice(name="Tegas", value="tegas"),
+]
+
 PRESET_SETUP = {
     "jualan": {
         "teks": {
@@ -608,13 +627,15 @@ PRESET_SETUP = {
     app_commands.Choice(name="Server jualan", value="jualan"),
     app_commands.Choice(name="Komunitas Roblox", value="komunitas"),
 ])
+@app_commands.choices(gaya=PILIHAN_GAYA)
 @app_commands.checks.has_permissions(administrator=True)
-async def setup(interaction: discord.Interaction, tipe: app_commands.Choice[str]):
+async def setup(interaction: discord.Interaction, tipe: app_commands.Choice[str], gaya: app_commands.Choice[str] = None):
     if not interaction.guild.me.guild_permissions.manage_channels or not interaction.guild.me.guild_permissions.manage_roles:
         await interaction.response.send_message("Bot butuh izin Manage Channels dan Manage Roles. Aktifkan dulu di pengaturan server.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
     preset = PRESET_SETUP[tipe.value]
+    kode_gaya = gaya.value if gaya else "polos"
     guild = interaction.guild
     dibuat = []
     for nama, warna, terpisah in preset["role"]:
@@ -626,40 +647,48 @@ async def setup(interaction: discord.Interaction, tipe: app_commands.Choice[str]
             except Exception:
                 pass
     for nama_kat, daftar_channel in preset["teks"].items():
-        kategori = discord.utils.get(guild.categories, name=nama_kat)
+        tampil_kat = rias_nama(nama_kat, "kategori", kode_gaya)
+        kategori = discord.utils.get(guild.categories, name=tampil_kat) or discord.utils.get(guild.categories, name=nama_kat)
         if kategori is None:
             try:
-                kategori = await guild.create_category(nama_kat, reason="setup bot")
+                kategori = await guild.create_category(tampil_kat, reason="setup bot")
+                data["gaya_nama"][str(kategori.id)] = nama_kat
                 dibuat.append(f"kategori {nama_kat}")
             except Exception:
                 continue
         for nama_ch in daftar_channel:
-            sudah_ada = discord.utils.get(kategori.channels, name=nama_ch)
+            tampil_ch = rias_nama(nama_ch, "teks", kode_gaya)
+            sudah_ada = discord.utils.get(kategori.channels, name=nama_ch) or discord.utils.get(kategori.channels, name=tampil_ch.lower().replace(" ", "-"))
             if sudah_ada is None:
                 try:
-                    await guild.create_text_channel(nama_ch, category=kategori, reason="setup bot")
+                    ch_baru = await guild.create_text_channel(tampil_ch, category=kategori, reason="setup bot")
+                    data["gaya_nama"][str(ch_baru.id)] = nama_ch
                     dibuat.append(f"channel {nama_ch}")
                 except Exception:
                     pass
     for nama_kat, daftar_suara in preset["suara"].items():
-        kategori = discord.utils.get(guild.categories, name=nama_kat)
+        tampil_kat = rias_nama(nama_kat, "kategori", kode_gaya)
+        kategori = discord.utils.get(guild.categories, name=tampil_kat) or discord.utils.get(guild.categories, name=nama_kat)
         if kategori is None:
             try:
-                kategori = await guild.create_category(nama_kat, reason="setup bot")
+                kategori = await guild.create_category(tampil_kat, reason="setup bot")
+                data["gaya_nama"][str(kategori.id)] = nama_kat
                 dibuat.append(f"kategori {nama_kat}")
             except Exception:
                 continue
         for nama_vc in daftar_suara:
-            sudah_ada = discord.utils.get(kategori.voice_channels, name=nama_vc)
+            tampil_vc = rias_nama(nama_vc, "suara", kode_gaya)
+            sudah_ada = discord.utils.get(kategori.voice_channels, name=nama_vc) or discord.utils.get(kategori.voice_channels, name=tampil_vc)
             if sudah_ada is None:
                 try:
-                    vc_baru = await guild.create_voice_channel(nama_vc, category=kategori, reason="setup bot")
+                    vc_baru = await guild.create_voice_channel(tampil_vc, category=kategori, reason="setup bot")
+                    data["gaya_nama"][str(vc_baru.id)] = nama_vc
                     dibuat.append(f"voice {nama_vc}")
                     if nama_vc == "Join to Create":
                         data["joinvoice"][str(guild.id)] = {"hub": vc_baru.id}
-                        simpan_data()
                 except Exception:
                     pass
+    simpan_data()
     if dibuat:
         ringkas = "\n".join(dibuat[:40])
         await interaction.followup.send(f"Setup {tipe.name} selesai. Yang dibuat:\n{ringkas}", ephemeral=True)
@@ -681,19 +710,24 @@ async def hapussetup(interaction: discord.Interaction, tipe: app_commands.Choice
     nama_suara = {v for daftar in preset["suara"].values() for v in daftar}
     nama_kategori = set(preset["teks"].keys()) | set(preset["suara"].keys())
     nama_role = {r[0] for r in preset["role"]}
+    id_polos = {int(cid): nm for cid, nm in data.get("gaya_nama", {}).items()}
     for channel in list(guild.channels):
         if isinstance(channel, discord.CategoryChannel):
             continue
-        if channel.name in nama_channel or channel.name in nama_suara:
+        polos = id_polos.get(channel.id, channel.name)
+        if polos in nama_channel or polos in nama_suara:
             try:
                 await channel.delete(reason="hapus setup")
+                data["gaya_nama"].pop(str(channel.id), None)
                 dihapus += 1
             except Exception:
                 pass
     for kategori in list(guild.categories):
-        if kategori.name in nama_kategori:
+        polos = id_polos.get(kategori.id, kategori.name)
+        if polos in nama_kategori:
             try:
                 await kategori.delete(reason="hapus setup")
+                data["gaya_nama"].pop(str(kategori.id), None)
                 dihapus += 1
             except Exception:
                 pass
@@ -999,6 +1033,65 @@ async def on_voice_state_update(member, before, after):
             simpan_data()
         except Exception:
             pass
+
+@tree.command(name="gayanama", description="Ubah gaya nama channel dan kategori yang dibuat setup")
+@app_commands.choices(tipe=[
+    app_commands.Choice(name="Server jualan", value="jualan"),
+    app_commands.Choice(name="Komunitas Roblox", value="komunitas"),
+])
+@app_commands.choices(gaya=PILIHAN_GAYA)
+@app_commands.checks.has_permissions(administrator=True)
+async def gayanama(interaction: discord.Interaction, tipe: app_commands.Choice[str], gaya: app_commands.Choice[str]):
+    if not interaction.guild.me.guild_permissions.manage_channels:
+        await interaction.response.send_message("Bot butuh izin Manage Channels.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    preset = PRESET_SETUP[tipe.value]
+    guild = interaction.guild
+    nama_teks = {c for daftar in preset["teks"].values() for c in daftar}
+    nama_suara = {v for daftar in preset["suara"].values() for v in daftar}
+    nama_kategori = set(preset["teks"].keys()) | set(preset["suara"].keys())
+    id_polos = {int(cid): nm for cid, nm in data.get("gaya_nama", {}).items()}
+    diubah = 0
+    for kategori in list(guild.categories):
+        polos = id_polos.get(kategori.id)
+        if polos is None and kategori.name in nama_kategori:
+            polos = kategori.name
+        if polos is None:
+            continue
+        baru = rias_nama(polos, "kategori", gaya.value)
+        if baru == kategori.name:
+            continue
+        try:
+            await kategori.edit(name=baru, reason="ubah gaya nama")
+            data["gaya_nama"][str(kategori.id)] = polos
+            diubah += 1
+        except Exception:
+            pass
+    for channel in list(guild.channels):
+        if isinstance(channel, discord.CategoryChannel):
+            continue
+        polos = id_polos.get(channel.id)
+        if polos is None:
+            if channel.name in nama_teks:
+                polos = channel.name
+            elif channel.name in nama_suara:
+                polos = channel.name
+        if polos is None:
+            continue
+        jenis = "suara" if isinstance(channel, discord.VoiceChannel) else "teks"
+        baru = rias_nama(polos, jenis, gaya.value)
+        try:
+            await channel.edit(name=baru, reason="ubah gaya nama")
+            data["gaya_nama"][str(channel.id)] = polos
+            diubah += 1
+        except Exception:
+            pass
+    simpan_data()
+    if diubah:
+        await interaction.followup.send(f"{diubah} channel dan kategori diubah ke gaya {gaya.name}.", ephemeral=True)
+    else:
+        await interaction.followup.send("Tidak ada yang diubah. Pastikan channelnya memang dibuat lewat setup dan tipe presetnya benar.", ephemeral=True)
 
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
