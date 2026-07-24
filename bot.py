@@ -39,6 +39,9 @@ def muat_data():
     isi.setdefault("antispam", {})
     isi.setdefault("harga", {})
     isi.setdefault("sticky", {})
+    isi.setdefault("joinvoice", {})
+    isi.setdefault("voice_sementara", [])
+    isi.setdefault("color_panels", [])
     return isi
 
 def simpan_data():
@@ -476,6 +479,25 @@ async def on_ready():
         client.add_view(DynamicRoleView(br["role_id"], br["label"]), message_id=br["message_id"])
     client.add_view(TiketPanelView())
     client.add_view(TiketCloseView())
+    for cp in data.get("color_panels", []):
+        try:
+            client.add_view(WarnaView([(r["id"], r["label"]) for r in cp["roles"]]), message_id=cp["message_id"])
+        except Exception:
+            pass
+    tersisa = []
+    for cid in list(data.get("voice_sementara", [])):
+        ch = client.get_channel(int(cid))
+        if ch is None:
+            continue
+        if len(ch.members) == 0:
+            try:
+                await ch.delete(reason="bersih voice sementara")
+            except Exception:
+                pass
+            continue
+        tersisa.append(cid)
+    data["voice_sementara"] = tersisa
+    simpan_data()
     await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Musik"))
     print(f"Bot online sebagai {client.user}")
 
@@ -538,32 +560,64 @@ async def stats(interaction: discord.Interaction):
     embed.add_field(name="Uptime", value=uptime)
     await interaction.response.send_message(embed=embed)
 
-STRUKTUR_SETUP = {
-    "INFORMATION": ["portal", "announcement", "rules", "link-invite", "giveaway"],
-    "STOCK INFORMATION": ["flash-sale", "item-limited", "value-changes"],
-    "ROBUX": ["robux-vilog", "robux-community"],
-    "TRANSACTION": ["order", "cashout", "payment"],
-    "REPUTATION": ["rating-server", "leaderboard", "order-log"],
-    "TESTIMONI": ["testimoni-robux", "testimoni-limited", "testimoni-gift"],
-    "PUBLIC": ["chat", "bot-command", "market-public"],
+PRESET_SETUP = {
+    "jualan": {
+        "teks": {
+            "INFORMATION": ["portal", "announcement", "rules", "link-invite", "giveaway"],
+            "STOCK INFORMATION": ["flash-sale", "item-limited", "value-changes"],
+            "ROBUX": ["robux-vilog", "robux-community"],
+            "TRANSACTION": ["order", "cashout", "payment"],
+            "REPUTATION": ["rating-server", "leaderboard", "order-log"],
+            "TESTIMONI": ["testimoni-robux", "testimoni-limited", "testimoni-gift"],
+            "PUBLIC": ["chat", "bot-command", "market-public"],
+        },
+        "suara": {},
+        "role": [
+            ("Admin", discord.Color.red(), True),
+            ("Moderator", discord.Color.orange(), True),
+            ("Member", discord.Color.blue(), False),
+            ("Pembeli", discord.Color.green(), False),
+        ],
+    },
+    "komunitas": {
+        "teks": {
+            "INFORMASI": ["rules", "announcement", "information", "update-server"],
+            "ROLES": ["display-roles", "warna-nama", "seting-voice"],
+            "KOMUNITAS": ["general", "media-share", "bot-command", "suggestions"],
+            "ROBLOX": ["game-update", "screenshot", "clip-highlight", "cari-teman-main", "showcase-karya"],
+            "EVENT": ["event-info", "giveaway"],
+            "SUPPORT": ["help", "bug-report"],
+        },
+        "suara": {
+            "VOICE AREA": ["Join to Create", "General 1", "General 2", "Main Bareng", "AFK"],
+            "MUSIC AREA": ["Music 1", "Music 2"],
+        },
+        "role": [
+            ("Admin", discord.Color.red(), True),
+            ("Moderator", discord.Color.orange(), True),
+            ("Member", discord.Color.blue(), False),
+            ("Roblox Developer", discord.Color.purple(), False),
+            ("Content Creator", discord.Color.teal(), False),
+            ("Event Winner", discord.Color.gold(), False),
+        ],
+    },
 }
-ROLE_SETUP = [
-    ("Admin", discord.Color.red(), True),
-    ("Moderator", discord.Color.orange(), True),
-    ("Member", discord.Color.blue(), False),
-    ("Pembeli", discord.Color.green(), False),
-]
 
-@tree.command(name="setup", description="Buat struktur channel dan role untuk komunitas, jualan, dan uji bot")
+@tree.command(name="setup", description="Buat struktur channel dan role sesuai tipe server")
+@app_commands.choices(tipe=[
+    app_commands.Choice(name="Server jualan", value="jualan"),
+    app_commands.Choice(name="Komunitas Roblox", value="komunitas"),
+])
 @app_commands.checks.has_permissions(administrator=True)
-async def setup(interaction: discord.Interaction):
+async def setup(interaction: discord.Interaction, tipe: app_commands.Choice[str]):
     if not interaction.guild.me.guild_permissions.manage_channels or not interaction.guild.me.guild_permissions.manage_roles:
         await interaction.response.send_message("Bot butuh izin Manage Channels dan Manage Roles. Aktifkan dulu di pengaturan server.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
+    preset = PRESET_SETUP[tipe.value]
     guild = interaction.guild
     dibuat = []
-    for nama, warna, terpisah in ROLE_SETUP:
+    for nama, warna, terpisah in preset["role"]:
         ada = discord.utils.get(guild.roles, name=nama)
         if ada is None:
             try:
@@ -571,7 +625,7 @@ async def setup(interaction: discord.Interaction):
                 dibuat.append(f"role {nama}")
             except Exception:
                 pass
-    for nama_kat, daftar_channel in STRUKTUR_SETUP.items():
+    for nama_kat, daftar_channel in preset["teks"].items():
         kategori = discord.utils.get(guild.categories, name=nama_kat)
         if kategori is None:
             try:
@@ -587,23 +641,50 @@ async def setup(interaction: discord.Interaction):
                     dibuat.append(f"channel {nama_ch}")
                 except Exception:
                     pass
+    for nama_kat, daftar_suara in preset["suara"].items():
+        kategori = discord.utils.get(guild.categories, name=nama_kat)
+        if kategori is None:
+            try:
+                kategori = await guild.create_category(nama_kat, reason="setup bot")
+                dibuat.append(f"kategori {nama_kat}")
+            except Exception:
+                continue
+        for nama_vc in daftar_suara:
+            sudah_ada = discord.utils.get(kategori.voice_channels, name=nama_vc)
+            if sudah_ada is None:
+                try:
+                    vc_baru = await guild.create_voice_channel(nama_vc, category=kategori, reason="setup bot")
+                    dibuat.append(f"voice {nama_vc}")
+                    if nama_vc == "Join to Create":
+                        data["joinvoice"][str(guild.id)] = {"hub": vc_baru.id}
+                        simpan_data()
+                except Exception:
+                    pass
     if dibuat:
         ringkas = "\n".join(dibuat[:40])
-        await interaction.followup.send(f"Setup selesai. Yang dibuat:\n{ringkas}", ephemeral=True)
+        await interaction.followup.send(f"Setup {tipe.name} selesai. Yang dibuat:\n{ringkas}", ephemeral=True)
     else:
         await interaction.followup.send("Semua struktur sudah ada, tidak ada yang perlu dibuat.", ephemeral=True)
 
 @tree.command(name="hapussetup", description="Hapus channel dan role yang dibuat oleh setup")
+@app_commands.choices(tipe=[
+    app_commands.Choice(name="Server jualan", value="jualan"),
+    app_commands.Choice(name="Komunitas Roblox", value="komunitas"),
+])
 @app_commands.checks.has_permissions(administrator=True)
-async def hapussetup(interaction: discord.Interaction):
+async def hapussetup(interaction: discord.Interaction, tipe: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
+    preset = PRESET_SETUP[tipe.value]
     guild = interaction.guild
     dihapus = 0
-    nama_channel = {c for daftar in STRUKTUR_SETUP.values() for c in daftar}
-    nama_kategori = set(STRUKTUR_SETUP.keys())
-    nama_role = {r[0] for r in ROLE_SETUP}
+    nama_channel = {c for daftar in preset["teks"].values() for c in daftar}
+    nama_suara = {v for daftar in preset["suara"].values() for v in daftar}
+    nama_kategori = set(preset["teks"].keys()) | set(preset["suara"].keys())
+    nama_role = {r[0] for r in preset["role"]}
     for channel in list(guild.channels):
-        if channel.name in nama_channel and not isinstance(channel, discord.CategoryChannel):
+        if isinstance(channel, discord.CategoryChannel):
+            continue
+        if channel.name in nama_channel or channel.name in nama_suara:
             try:
                 await channel.delete(reason="hapus setup")
                 dihapus += 1
@@ -813,6 +894,112 @@ async def stickyhapus(interaction: discord.Interaction):
             pass
     await interaction.response.send_message("Sticky message dimatikan.", ephemeral=True)
 
+WARNA_ROLE = [
+    ("Yellow", 0xF1C40F),
+    ("Green", 0x2ECC71),
+    ("Orange", 0xE67E22),
+    ("Grey", 0x95A5A6),
+    ("White", 0xFFFFFE),
+    ("Pink", 0xFF69B4),
+    ("Red", 0xE74C3C),
+    ("Purple", 0x9B59B6),
+    ("Navy", 0x34495E),
+    ("Blue", 0x3498DB),
+    ("Light Pink", 0xFFC0CB),
+]
+
+class WarnaTombol(discord.ui.Button):
+    def __init__(self, role_id, label):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, custom_id=f"warna_{role_id}")
+        self.role_id = role_id
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        role = guild.get_role(self.role_id)
+        if role is None:
+            await interaction.response.send_message("Role warna ini sudah dihapus dari server.", ephemeral=True)
+            return
+        nama_warna = {n for n, _ in WARNA_ROLE}
+        try:
+            if role in interaction.user.roles:
+                await interaction.user.remove_roles(role)
+                await interaction.response.send_message(f"Warna {role.name} dilepas.", ephemeral=True)
+                return
+            lama = [r for r in interaction.user.roles if r.name in nama_warna and r.id != role.id]
+            if lama:
+                await interaction.user.remove_roles(*lama)
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message(f"Warna namamu sekarang {role.name}.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("Gagal. Posisikan role Bot di atas semua role warna pada pengaturan server.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"Gagal: {bersihkan_error(e)}", ephemeral=True)
+
+class WarnaView(discord.ui.View):
+    def __init__(self, pasangan):
+        super().__init__(timeout=None)
+        for role_id, label in pasangan:
+            self.add_item(WarnaTombol(role_id, label))
+
+@tree.command(name="colorpanel", description="Buat role warna nama dan kirim panel tombolnya")
+@app_commands.checks.has_permissions(administrator=True)
+async def colorpanel(interaction: discord.Interaction):
+    if not interaction.guild.me.guild_permissions.manage_roles:
+        await interaction.response.send_message("Bot butuh izin Manage Roles.", ephemeral=True)
+        return
+    await interaction.response.defer()
+    guild = interaction.guild
+    pasangan = []
+    for nama, kode in WARNA_ROLE:
+        role = discord.utils.get(guild.roles, name=nama)
+        if role is None:
+            try:
+                role = await guild.create_role(name=nama, color=discord.Color(kode), reason="panel warna")
+            except Exception:
+                continue
+        pasangan.append((role.id, nama))
+    if not pasangan:
+        await interaction.followup.send("Gagal membuat role warna.", ephemeral=True)
+        return
+    embed = discord.Embed(title="Warna Nama", description="Klik tombol untuk mengubah warna namamu. Warna lama otomatis dilepas. Klik warna yang sama untuk melepasnya.", color=discord.Color.blurple())
+    tampilan = WarnaView(pasangan)
+    pesan = await interaction.followup.send(embed=embed, view=tampilan, wait=True)
+    data["color_panels"].append({"message_id": pesan.id, "roles": [{"id": rid, "label": lab} for rid, lab in pasangan]})
+    simpan_data()
+
+@tree.command(name="setjoinvoice", description="Tentukan voice channel Join to Create")
+@app_commands.describe(channel="Voice channel yang jadi pintu masuk")
+@app_commands.checks.has_permissions(administrator=True)
+async def setjoinvoice(interaction: discord.Interaction, channel: discord.VoiceChannel):
+    data["joinvoice"][str(interaction.guild_id)] = {"hub": channel.id}
+    simpan_data()
+    await interaction.response.send_message(f"{channel.name} sekarang jadi Join to Create. Member yang masuk ke sana otomatis dibuatkan voice sendiri.", ephemeral=True)
+
+@client.event
+async def on_voice_state_update(member, before, after):
+    if member.bot:
+        return
+    info = data["joinvoice"].get(str(member.guild.id))
+    if info and after.channel is not None and after.channel.id == int(info["hub"]):
+        try:
+            izin = {member: discord.PermissionOverwrite(manage_channels=True, move_members=True, mute_members=True)}
+            baru = await member.guild.create_voice_channel(f"Room {member.display_name}"[:90], category=after.channel.category, overwrites=izin, reason="voice sementara")
+            await member.move_to(baru)
+            data["voice_sementara"].append(baru.id)
+            simpan_data()
+        except Exception:
+            pass
+    if before.channel is not None and before.channel.id in data["voice_sementara"] and len(before.channel.members) == 0:
+        try:
+            await before.channel.delete(reason="voice sementara kosong")
+        except Exception:
+            pass
+        try:
+            data["voice_sementara"].remove(before.channel.id)
+            simpan_data()
+        except Exception:
+            pass
+
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
     await interaction.response.send_message("Pong! Bot aktif.")
@@ -872,6 +1059,9 @@ async def pengaturan(interaction: discord.Interaction):
     menit = data["antispam"].get(gid)
     embed.add_field(name="Anti spam link", value=f"{menit} menit pertama" if menit else "mati", inline=False)
 
+    hub = data["joinvoice"].get(gid)
+    embed.add_field(name="Join to Create", value=f"<#{hub['hub']}>" if hub else "mati", inline=False)
+
     jumlah = len(data["custom_commands"].get(gid, {}))
     embed.add_field(name="Custom command", value=f"{jumlah} perintah", inline=False)
 
@@ -883,6 +1073,7 @@ async def pengaturan(interaction: discord.Interaction):
     app_commands.Choice(name="Welcome", value="welcome"),
     app_commands.Choice(name="Auto role", value="autorole"),
     app_commands.Choice(name="Anti spam link", value="antispam"),
+    app_commands.Choice(name="Join to Create", value="joinvoice"),
 ])
 @app_commands.checks.has_permissions(administrator=True)
 async def reset(interaction: discord.Interaction, fitur: app_commands.Choice[str]):
