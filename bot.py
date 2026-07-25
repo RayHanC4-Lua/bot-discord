@@ -21,6 +21,11 @@ TINGKAT_AUDIO = [192, 128, 96, 64]
 CONFIG_FILE = os.getenv("CONFIG_PATH", "bot_config.json")
 FILE_BG = "background.png"
 FILE_FONT = "font.ttf"
+BANNER_DIR = os.path.join(os.path.dirname(CONFIG_FILE) or ".", "banners")
+os.makedirs(BANNER_DIR, exist_ok=True)
+
+def path_banner(guild_id):
+    return os.path.join(BANNER_DIR, f"{guild_id}.png")
 POLA_LINK = re.compile(r"(https?://|discord\.gg/|www\.)", re.IGNORECASE)
 
 def muat_data():
@@ -259,10 +264,11 @@ class PilihFormat(discord.ui.View):
     async def audio(self, interaction: discord.Interaction, tombol: discord.ui.Button):
         await self.jalankan(interaction, True, 192)
 
-def buat_banner(nama, urutan, avatar_bytes):
+def buat_banner(nama, urutan, avatar_bytes, bg_path=None):
     lebar, tinggi = 1024, 400
-    if os.path.exists(FILE_BG):
-        bg = Image.open(FILE_BG).convert("RGB").resize((lebar, tinggi))
+    sumber_bg = bg_path if (bg_path and os.path.exists(bg_path)) else FILE_BG
+    if os.path.exists(sumber_bg):
+        bg = Image.open(sumber_bg).convert("RGB").resize((lebar, tinggi))
     else:
         bg = Image.new("RGB", (lebar, tinggi), (30, 30, 40))
     gambar = ImageDraw.Draw(bg)
@@ -414,7 +420,7 @@ async def on_member_join(member):
             berkas = None
             try:
                 avatar = await member.display_avatar.replace(size=256, format="png").read()
-                data_gambar = await asyncio.to_thread(buat_banner, member.display_name, member.guild.member_count, avatar)
+                data_gambar = await asyncio.to_thread(buat_banner, member.display_name, member.guild.member_count, avatar, path_banner(member.guild.id))
                 berkas = discord.File(data_gambar, filename="welcome.png")
             except Exception:
                 berkas = None
@@ -1092,6 +1098,46 @@ async def gayanama(interaction: discord.Interaction, tipe: app_commands.Choice[s
         await interaction.followup.send(f"{diubah} channel dan kategori diubah ke gaya {gaya.name}.", ephemeral=True)
     else:
         await interaction.followup.send("Tidak ada yang diubah. Pastikan channelnya memang dibuat lewat setup dan tipe presetnya benar.", ephemeral=True)
+
+@tree.command(name="setbanner", description="Atur gambar background welcome khusus server ini")
+@app_commands.describe(gambar="Upload gambar, idealnya rasio 1024x400")
+@app_commands.checks.has_permissions(administrator=True)
+async def setbanner(interaction: discord.Interaction, gambar: discord.Attachment):
+    if not gambar.content_type or not gambar.content_type.startswith("image/"):
+        await interaction.response.send_message("File harus berupa gambar PNG atau JPG.", ephemeral=True)
+        return
+    if gambar.size > 8 * 1024 * 1024:
+        await interaction.response.send_message("Ukuran gambar maksimal 8 MB.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    try:
+        data_byte = await gambar.read()
+        def simpan():
+            img = Image.open(io.BytesIO(data_byte)).convert("RGB").resize((1024, 400))
+            img.save(path_banner(interaction.guild_id), format="PNG")
+        await asyncio.to_thread(simpan)
+    except Exception as e:
+        await interaction.followup.send(f"Gagal memproses gambar: {bersihkan_error(e)}", ephemeral=True)
+        return
+    try:
+        avatar = await interaction.user.display_avatar.replace(size=256, format="png").read()
+        preview = await asyncio.to_thread(buat_banner, interaction.user.display_name, interaction.guild.member_count, avatar, path_banner(interaction.guild_id))
+        await interaction.followup.send("Background welcome khusus server ini berhasil diatur. Ini contoh tampilannya:", file=discord.File(preview, filename="preview.png"), ephemeral=True)
+    except Exception:
+        await interaction.followup.send("Background welcome khusus server ini berhasil diatur.", ephemeral=True)
+
+@tree.command(name="hapusbanner", description="Kembalikan background welcome ke bawaan bot")
+@app_commands.checks.has_permissions(administrator=True)
+async def hapusbanner(interaction: discord.Interaction):
+    p = path_banner(interaction.guild_id)
+    if os.path.exists(p):
+        try:
+            os.remove(p)
+        except Exception:
+            pass
+        await interaction.response.send_message("Background welcome dikembalikan ke bawaan bot.", ephemeral=True)
+    else:
+        await interaction.response.send_message("Server ini belum punya background khusus.", ephemeral=True)
 
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
