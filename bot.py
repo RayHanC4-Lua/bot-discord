@@ -474,7 +474,7 @@ async def on_presence_update(before, after):
         if lagu_terakhir is None:
             return
         lagu_terakhir = None
-        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Musik"))
+        await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="/help | ryhanc.wtf"))
 
 @client.event
 async def on_ready():
@@ -505,7 +505,7 @@ async def on_ready():
         tersisa.append(cid)
     data["voice_sementara"] = tersisa
     simpan_data()
-    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Musik"))
+    await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="/help | ryhanc.wtf"))
     print(f"Bot online sebagai {client.user}")
 
 @tree.error
@@ -1138,6 +1138,86 @@ async def hapusbanner(interaction: discord.Interaction):
         await interaction.response.send_message("Background welcome dikembalikan ke bawaan bot.", ephemeral=True)
     else:
         await interaction.response.send_message("Server ini belum punya background khusus.", ephemeral=True)
+
+HELP_KATEGORI = {
+    "Setup dan Tampilan": [
+        ("/setup", "Bikin struktur channel dan role otomatis (admin)"),
+        ("/gayanama", "Ubah gaya hiasan nama channel (admin)"),
+        ("/colorpanel", "Kirim panel warna nama untuk member (admin)"),
+        ("/setbanner", "Atur gambar welcome khusus server ini (admin)"),
+        ("/hapusbanner", "Kembalikan welcome ke bawaan bot (admin)"),
+        ("/setwelcome", "Atur pesan sambutan member baru (admin)"),
+        ("/setjoinvoice", "Atur voice Join to Create (admin)"),
+        ("/hapussetup", "Hapus channel dan role buatan setup (admin)"),
+    ],
+    "Moderasi dan Log": [
+        ("/setlog", "Daftarkan channel security log (admin)"),
+        ("/setantispam", "Blokir link dari member baru (admin)"),
+        ("/purge", "Hapus banyak pesan sekaligus (admin)"),
+        ("/pengaturan", "Lihat pengaturan bot di server ini"),
+        ("/reset", "Matikan salah satu fitur (admin)"),
+    ],
+    "Member dan Role": [
+        ("/setautorole", "Role otomatis untuk member baru (admin)"),
+        ("/giverole", "Beri role ke member (admin)"),
+        ("/takerole", "Cabut role dari member (admin)"),
+        ("/buttonrole", "Buat tombol ambil role mandiri (admin)"),
+    ],
+    "Tiket dan Jualan": [
+        ("/tiketpanel", "Kirim panel tombol tiket order (admin)"),
+        ("/harga", "Lihat daftar harga"),
+        ("/hargaset", "Tambah atau ubah harga (admin)"),
+        ("/hargahapus", "Hapus item dari daftar harga (admin)"),
+        ("/testi", "Kirim testimoni ke channel ini"),
+    ],
+    "Utilitas": [
+        ("/download", "Download video atau mp3 dari link atau judul"),
+        ("/cc", "Jalankan custom command"),
+        ("/addcmd", "Buat custom command baru (admin)"),
+        ("/delcmd", "Hapus custom command (admin)"),
+        ("/stickyset", "Pasang pesan sticky di channel (admin)"),
+        ("/stickyhapus", "Matikan pesan sticky (admin)"),
+        ("/stats", "Statistik bot"),
+        ("/ping", "Cek apakah bot aktif"),
+    ],
+}
+
+def embed_help_beranda():
+    embed = discord.Embed(title="Bantuan RyHanC", description="Satu bot untuk membangun dan mengelola server komunitas maupun jualan.\n\nPilih kategori di menu bawah untuk melihat daftar perintahnya.", color=discord.Color.blurple())
+    for nama in HELP_KATEGORI:
+        embed.add_field(name=nama, value=f"{len(HELP_KATEGORI[nama])} perintah", inline=True)
+    embed.set_footer(text="ryhanc.wtf")
+    return embed
+
+def embed_help_kategori(nama):
+    daftar = HELP_KATEGORI[nama]
+    isi = "\n".join(f"**{cmd}**\n{ket}" for cmd, ket in daftar)
+    embed = discord.Embed(title=f"Bantuan - {nama}", description=isi[:4000], color=discord.Color.blurple())
+    embed.set_footer(text="Tanda (admin) berarti hanya bisa dipakai admin")
+    return embed
+
+class HelpSelect(discord.ui.Select):
+    def __init__(self):
+        opsi = [discord.SelectOption(label="Beranda", value="__beranda__", description="Kembali ke halaman utama")]
+        for nama in HELP_KATEGORI:
+            opsi.append(discord.SelectOption(label=nama, value=nama))
+        super().__init__(placeholder="Pilih kategori perintah", options=opsi)
+
+    async def callback(self, interaction: discord.Interaction):
+        pilihan = self.values[0]
+        if pilihan == "__beranda__":
+            await interaction.response.edit_message(embed=embed_help_beranda(), view=self.view)
+        else:
+            await interaction.response.edit_message(embed=embed_help_kategori(pilihan), view=self.view)
+
+class HelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=180)
+        self.add_item(HelpSelect())
+
+@tree.command(name="help", description="Lihat semua fitur dan perintah bot")
+async def help_command(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=embed_help_beranda(), view=HelpView(), ephemeral=True)
 
 @tree.command(name="ping", description="Cek apakah bot aktif")
 async def ping(interaction: discord.Interaction):
