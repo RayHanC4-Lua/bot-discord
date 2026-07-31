@@ -747,9 +747,8 @@ async def hapussetup(interaction: discord.Interaction, tipe: app_commands.Choice
     await interaction.followup.send(f"{dihapus} channel, kategori, dan role hasil setup dihapus.", ephemeral=True)
 
 TIKET_TIPE = [
-    ("topup", "Topup Robux"),
-    ("website", "Website Services"),
-    ("diskusi", "General Discussion"),
+    ("order", "Order"),
+    ("report", "Report"),
 ]
 
 async def buka_tiket(interaction, kode, label):
@@ -769,6 +768,7 @@ async def buka_tiket(interaction, kode, label):
             await interaction.response.send_message(f"Kamu sudah punya tiket {label} yang terbuka: {ch.mention}", ephemeral=True)
             return
     role_admin = discord.utils.get(guild.roles, name="Admin")
+    role_mod = discord.utils.get(guild.roles, name="Moderator")
     izin = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
         interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, read_message_history=True),
@@ -776,20 +776,31 @@ async def buka_tiket(interaction, kode, label):
     }
     if role_admin:
         izin[role_admin] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
+    if kode == "report" and role_mod:
+        izin[role_mod] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
     nama = f"{kode}-{interaction.user.name}"[:90]
     try:
         channel = await guild.create_text_channel(nama, category=kategori, overwrites=izin, topic=f"pemilik:{interaction.user.id}|tipe:{kode}", reason="tiket baru")
     except Exception as e:
         await interaction.response.send_message(f"Gagal membuat tiket: {bersihkan_error(e)}", ephemeral=True)
         return
-    embed = discord.Embed(title=f"Tiket {label}", description=f"Halo {interaction.user.mention}, silakan jelaskan pesanan atau pertanyaanmu di sini. Admin akan segera membantu.", color=discord.Color.green(), timestamp=discord.utils.utcnow())
-    sebutan = role_admin.mention if role_admin else ""
-    await channel.send(content=f"{interaction.user.mention} {sebutan}", embed=embed, view=TiketCloseView())
+    if kode == "report":
+        deskripsi = f"Halo {interaction.user.mention}, jelaskan laporanmu di sini. Sertakan nama pengguna yang dilaporkan dan bukti seperti screenshot atau video kalau ada. Tim akan segera menindaklanjuti."
+    else:
+        deskripsi = f"Halo {interaction.user.mention}, silakan jelaskan pesanan atau pertanyaanmu di sini. Admin akan segera membantu."
+    embed = discord.Embed(title=f"Tiket {label}", description=deskripsi, color=discord.Color.green(), timestamp=discord.utils.utcnow())
+    penyebut = []
+    if role_admin:
+        penyebut.append(role_admin.mention)
+    if kode == "report" and role_mod:
+        penyebut.append(role_mod.mention)
+    await channel.send(content=f"{interaction.user.mention} {' '.join(penyebut)}", embed=embed, view=TiketCloseView())
     await interaction.response.send_message(f"Tiket berhasil dibuat: {channel.mention}", ephemeral=True)
 
 class TiketTombol(discord.ui.Button):
     def __init__(self, kode, label):
-        super().__init__(label=label, style=discord.ButtonStyle.primary, custom_id=f"tiket_buka:{kode}")
+        gaya = discord.ButtonStyle.danger if kode == "report" else discord.ButtonStyle.primary
+        super().__init__(label=label, style=gaya, custom_id=f"tiket_buka:{kode}")
         self.kode = kode
         self.label_tiket = label
 
@@ -844,13 +855,12 @@ class TiketCloseView(discord.ui.View):
         except Exception:
             pass
 
-@tree.command(name="tiketpanel", description="Kirim panel tombol tiket order dan diskusi")
+@tree.command(name="tiketpanel", description="Kirim panel tombol tiket order dan report")
 @app_commands.checks.has_permissions(administrator=True)
 async def tiketpanel(interaction: discord.Interaction):
-    embed = discord.Embed(title="Order dan Diskusi", description="Klik tombol sesuai kebutuhanmu untuk membuka tiket privat yang hanya bisa dilihat kamu dan admin.", color=discord.Color.blurple())
-    embed.add_field(name="Topup Robux", value="Beli Robux di sini", inline=False)
-    embed.add_field(name="Website Services", value="Order jasa pembuatan website", inline=False)
-    embed.add_field(name="General Discussion", value="Tanya-tanya atau diskusi umum", inline=False)
+    embed = discord.Embed(title="Order dan Report", description="Klik tombol sesuai kebutuhanmu untuk membuka tiket privat.", color=discord.Color.blurple())
+    embed.add_field(name="Order", value="Order jasa, item, atau tanya-tanya. Dilihat kamu dan Admin.", inline=False)
+    embed.add_field(name="Report", value="Laporkan pelanggaran, bug, atau masalah member. Dilihat kamu, Admin, dan Moderator.", inline=False)
     await interaction.response.send_message(embed=embed, view=TiketPanelView())
 
 class TestiModal(discord.ui.Modal, title="Kirim Testimoni"):
@@ -1162,7 +1172,7 @@ HELP_KATEGORI = {
         ("/buttonrole", "Buat tombol ambil role mandiri (admin)"),
     ],
     "Tiket dan Jualan": [
-        ("/tiketpanel", "Kirim panel tombol tiket order (admin)"),
+        ("/tiketpanel", "Kirim panel tiket order dan report (admin)"),
         ("/harga", "Lihat daftar harga"),
         ("/hargaset", "Tambah atau ubah harga (admin)"),
         ("/hargahapus", "Hapus item dari daftar harga (admin)"),
