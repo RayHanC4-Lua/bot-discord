@@ -488,7 +488,7 @@ async def on_ready():
     client.add_view(TiketCloseView())
     for cp in data.get("color_panels", []):
         try:
-            client.add_view(WarnaView([(r["id"], r["label"]) for r in cp["roles"]]), message_id=cp["message_id"])
+            client.add_view(WarnaView([(r["id"], r["label"], r.get("emoji")) for r in cp["roles"]]), message_id=cp["message_id"])
         except Exception:
             pass
     tersisa = []
@@ -945,22 +945,22 @@ async def stickyhapus(interaction: discord.Interaction):
     await interaction.response.send_message("Sticky message dimatikan.", ephemeral=True)
 
 WARNA_ROLE = [
-    ("Yellow", 0xF1C40F),
-    ("Green", 0x2ECC71),
-    ("Orange", 0xE67E22),
-    ("Grey", 0x95A5A6),
-    ("White", 0xFFFFFE),
-    ("Pink", 0xFF69B4),
-    ("Red", 0xE74C3C),
-    ("Purple", 0x9B59B6),
-    ("Navy", 0x34495E),
-    ("Blue", 0x3498DB),
-    ("Light Pink", 0xFFC0CB),
+    ("Yellow", 0xF1C40F, "\U0001F49B"),
+    ("Green", 0x2ECC71, "\U0001F49A"),
+    ("Orange", 0xE67E22, "\U0001F9E1"),
+    ("Grey", 0x95A5A6, "\U0001FA76"),
+    ("White", 0xFFFFFE, "\U0001F90D"),
+    ("Pink", 0xFF69B4, "\U0001FA77"),
+    ("Red", 0xE74C3C, "\u2764\uFE0F"),
+    ("Purple", 0x9B59B6, "\U0001F49C"),
+    ("Navy", 0x34495E, "\U0001F499"),
+    ("Blue", 0x3498DB, "\U0001FA75"),
+    ("Light Pink", 0xFFC0CB, "\U0001F497"),
 ]
 
 class WarnaTombol(discord.ui.Button):
-    def __init__(self, role_id, label):
-        super().__init__(label=label, style=discord.ButtonStyle.secondary, custom_id=f"warna_{role_id}")
+    def __init__(self, role_id, label, emoji=None):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, custom_id=f"warna_{role_id}", emoji=emoji)
         self.role_id = role_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -969,7 +969,7 @@ class WarnaTombol(discord.ui.Button):
         if role is None:
             await interaction.response.send_message("Role warna ini sudah dihapus dari server.", ephemeral=True)
             return
-        nama_warna = {n for n, _ in WARNA_ROLE}
+        nama_warna = {n for n, _, _ in WARNA_ROLE}
         try:
             if role in interaction.user.roles:
                 await interaction.user.remove_roles(role)
@@ -988,8 +988,10 @@ class WarnaTombol(discord.ui.Button):
 class WarnaView(discord.ui.View):
     def __init__(self, pasangan):
         super().__init__(timeout=None)
-        for role_id, label in pasangan:
-            self.add_item(WarnaTombol(role_id, label))
+        for entri in pasangan:
+            role_id, label = entri[0], entri[1]
+            emoji = entri[2] if len(entri) > 2 else None
+            self.add_item(WarnaTombol(role_id, label, emoji))
 
 @tree.command(name="colorpanel", description="Buat role warna nama dan kirim panel tombolnya")
 @app_commands.checks.has_permissions(administrator=True)
@@ -1000,21 +1002,21 @@ async def colorpanel(interaction: discord.Interaction):
     await interaction.response.defer()
     guild = interaction.guild
     pasangan = []
-    for nama, kode in WARNA_ROLE:
+    for nama, kode, emoji in WARNA_ROLE:
         role = discord.utils.get(guild.roles, name=nama)
         if role is None:
             try:
                 role = await guild.create_role(name=nama, color=discord.Color(kode), reason="panel warna")
             except Exception:
                 continue
-        pasangan.append((role.id, nama))
+        pasangan.append((role.id, nama, emoji))
     if not pasangan:
         await interaction.followup.send("Gagal membuat role warna.", ephemeral=True)
         return
     embed = discord.Embed(title="Warna Nama", description="Klik tombol untuk mengubah warna namamu. Warna lama otomatis dilepas. Klik warna yang sama untuk melepasnya.", color=discord.Color.blurple())
     tampilan = WarnaView(pasangan)
     pesan = await interaction.followup.send(embed=embed, view=tampilan, wait=True)
-    data["color_panels"].append({"message_id": pesan.id, "roles": [{"id": rid, "label": lab} for rid, lab in pasangan]})
+    data["color_panels"].append({"message_id": pesan.id, "roles": [{"id": rid, "label": lab, "emoji": emo} for rid, lab, emo in pasangan]})
     simpan_data()
 
 @tree.command(name="setjoinvoice", description="Tentukan voice channel Join to Create")
