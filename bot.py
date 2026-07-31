@@ -935,17 +935,15 @@ async def stickyhapus(interaction: discord.Interaction):
     await interaction.response.send_message("Sticky message dimatikan.", ephemeral=True)
 
 WARNA_ROLE = [
-    ("Yellow", 0xF1C40F),
-    ("Green", 0x2ECC71),
-    ("Orange", 0xE67E22),
-    ("Grey", 0x95A5A6),
-    ("White", 0xFFFFFE),
-    ("Pink", 0xFF69B4),
-    ("Red", 0xE74C3C),
-    ("Purple", 0x9B59B6),
-    ("Navy", 0x34495E),
-    ("Blue", 0x3498DB),
-    ("Light Pink", 0xFFC0CB),
+    ("💛Yellow", 0xF1C40F),
+    ("💚Green", 0x2ECC71),
+    ("🧡Orange", 0xE67E22),
+    ("🩶Grey", 0x95A5A6),
+    ("🤍White", 0xFFFFFE),
+    ("🩷Pink", 0xFF69B4),
+    ("🍅Red", 0xE74C3C),
+    ("💜Purple", 0x9B59B6),
+    ("💙Blue", 0x3498DB),
 ]
 
 class WarnaTombol(discord.ui.Button):
