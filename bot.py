@@ -1441,6 +1441,7 @@ async def on_ready():
     client._tugas_latar = True
     asyncio.create_task(loop_penjadwal())
     asyncio.create_task(loop_rutinitas())
+    asyncio.create_task(loop_laporan())
   for br in data.get("button_roles", []):
     client.add_view(
         DynamicRoleView(br["role_id"], br["label"]), message_id=br["message_id"]
@@ -2552,9 +2553,9 @@ GAYA_CHAT = (
     " lazim sekali seperti deadline atau meeting). Cukup 1 sampai 2"
     " kalimat, tanpa poin, judul, atau tabel. Jangan menyalin atau"
     " mengulang kalimat rekanmu maupun kalimat user. Jangan memakai wkwk"
-    " atau emoji. Setiap pesan wajib menambah satu hal baru. Hanya ada tiga"
-    " anggota tim: Pranowo, Manager, dan Chat AI. Jangan menyebut nama orang,"
-    " tim, divisi, atau sistem lain yang tidak ada, dan jangan mengarang"
+    " atau emoji. Setiap pesan wajib menambah satu hal baru. Jangan menyebut"
+    " nama orang, tim, divisi, atau sistem lain di luar daftar anggota tim"
+    " yang diberikan, dan jangan mengarang"
     " tenggat, angka, atau aturan hukum yang tidak disebut di perintah user."
 )
 WATAK_AGEN = {
@@ -2674,6 +2675,97 @@ def galat_groq(teks):
   return teks.startswith(("Error API", "Exception error"))
 
 
+RESERVED_NAMA = {"pranowo", "manager", "chatai", "keputusan", "sistem", "rian"}
+
+
+def daftar_staf():
+  return data.get("staf", [])
+
+
+def anggota_tim():
+  baris = [
+      "Pranowo (Marketing Manager)",
+      "Manager (Software House Manager)",
+      "Chat AI (eksekutor)",
+  ]
+  baris += [f"{s['nama'].capitalize()} ({s['peran']})" for s in daftar_staf()]
+  return ", ".join(baris)
+
+
+def watak_agen(nama):
+  if nama in WATAK_AGEN:
+    return WATAK_AGEN[nama]
+  for s in daftar_staf():
+    if s["nama"] == nama:
+      return f"Kamu {nama.capitalize()}, {s['peran']}. Sudut pandangmu: {s['sudut']}"
+  return ""
+
+
+async def coba_rekrut(ringkas, kanal_id):
+  staf = data.setdefault("staf", [])
+  maks = int(os.getenv("KANTOR_MAKS_STAF", "3"))
+  if len(staf) >= maks:
+    return
+  terakhir = data.get("rekrut_terakhir")
+  if terakhir:
+    umur = datetime.now(timezone.utc) - datetime.fromisoformat(terakhir)
+    if umur.total_seconds() < 20 * 3600:
+      return
+  if random.random() > 0.35:
+    return
+  hasil = await asyncio.to_thread(
+      panggil_agen_groq,
+      "Software House Manager",
+      f"Obrolan tadi:\n{ringkas}\n\nAnggota tim saat ini: {anggota_tim()}."
+      " Perlukah tim merekrut satu anggota baru agar pekerjaan lebih lengkap?",
+      (
+          "Jika perlu, balas hanya objek JSON dengan kunci nama (satu kata"
+          " huruf kecil, 3 sampai 12 huruf), peran (maksimal 4 kata, misalnya"
+          " Analis Konten), sudut_pandang (satu kalimat), dan alasan (satu"
+          " kalimat). Jika tidak perlu, balas {\"perlu\": false}."
+      ),
+      60,
+      600,
+      0.6,
+  )
+  cocok = re.search(r"\{.*\}", hasil, re.DOTALL)
+  if not cocok:
+    return
+  try:
+    obj = json.loads(cocok.group(0), strict=False)
+  except ValueError:
+    return
+  if obj.get("perlu") is False:
+    return
+  nama = str(obj.get("nama", "")).strip().lower()
+  if (
+      not re.fullmatch(r"[a-z]{3,12}", nama)
+      or nama in RESERVED_NAMA
+      or any(s["nama"] == nama for s in staf)
+  ):
+    return
+  peran = bersihkan_gaya(str(obj.get("peran", "")))[:40]
+  sudut = bersihkan_gaya(str(obj.get("sudut_pandang", "")))[:160]
+  alasan = bersihkan_gaya(str(obj.get("alasan", "")))[:160]
+  if not peran or not sudut:
+    return
+  staf.append({
+      "nama": nama,
+      "peran": peran,
+      "sudut": sudut,
+      "alasan": alasan,
+      "waktu": datetime.now(timezone.utc).isoformat(),
+  })
+  data["rekrut_terakhir"] = datetime.now(timezone.utc).isoformat()
+  simpan_data()
+  sapaan = (
+      f"Halo semua, aku {nama.capitalize()}, {peran}. Aku bergabung karena"
+      f" {alasan or 'tim butuh sudut pandang baru'}."
+  )
+  await catat_kantor(nama, sapaan, "rekrut")
+  await kirim_ke_kanal(kanal_id, f"**@{nama}**: {sapaan}")
+
+
 async def satu_siklus_rutin():
   if 0 <= sekarang_wib().hour < 6:
     return
@@ -2683,11 +2775,14 @@ async def satu_siklus_rutin():
     topik = "tindak lanjut tugas bos: " + random.choice(tugas_lama)
   else:
     topik = random.choice(TOPIK_RUTIN)
-  pemeran = [("Marketing Manager", "pranowo"), ("Software House Manager", "manager")]
+  peserta = [
+      ("Marketing Manager", "pranowo"),
+      ("Software House Manager", "manager"),
+  ] + [(s["peran"], s["nama"]) for s in daftar_staf()]
   obrolan = []
   await catat_kantor("sistem", f"Obrolan santai di kantor tentang: {topik}", "rutin")
-  for giliran in range(3):
-    peran, nama = pemeran[giliran % 2]
+  for giliran in range(min(3 + len(daftar_staf()), 6)):
+    peran, nama = peserta[giliran % len(peserta)]
     riwayat = "\n".join(f"{n}: {t}" for n, t in obrolan)[-1500:]
     catatan = data.get("catatan_agen", {}).get(nama, [])[-3:]
     info_catatan = (
@@ -2699,17 +2794,17 @@ async def satu_siklus_rutin():
     )
     tugas_agen = (
         f"Topik obrolan santai di kantor (bukan perintah dari bos): {topik}"
-        f"\n\nWaktu sekarang: {sekarang_wib():%H:%M} WIB.\n\n{info_catatan}"
-        f"Obrolan sejauh ini:\n{riwayat or '(belum ada)'}\n\nSekarang"
-        f" giliranmu sebagai {nama}. Tulis satu pesan chat singkat yang"
-        " menambah hal baru."
+        f"\n\nWaktu sekarang: {sekarang_wib():%H:%M} WIB.\nAnggota tim saat"
+        f" ini: {anggota_tim()}.\n\n{info_catatan}Obrolan sejauh ini:\n"
+        f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
+        " Tulis satu pesan chat singkat yang menambah hal baru."
     )
     balasan = bersihkan_gaya(
         await asyncio.to_thread(
             panggil_agen_groq,
             peran,
             tugas_agen,
-            f"{GAYA_CHAT} {WATAK_AGEN[nama]}",
+            f"{GAYA_CHAT} {watak_agen(nama)}",
             45,
             800,
             0.9,
@@ -2726,7 +2821,7 @@ async def satu_siklus_rutin():
   if len(obrolan) < 2:
     return
   ringkas = "\n".join(f"{n}: {t}" for n, t in obrolan)
-  for peran, nama in pemeran:
+  for peran, nama in peserta[:5]:
     catatan_baru = bersihkan_gaya(
         await asyncio.to_thread(
             panggil_agen_groq,
@@ -2761,6 +2856,7 @@ async def satu_siklus_rutin():
       del usulan[:-10]
       await catat_kantor("manager", f"Usulan fitur: {ide}", "usulan")
       await kirim_ke_kanal(kanal_id, f"**@manager**: Usulan fitur: {ide}")
+  await coba_rekrut(ringkas, kanal_id)
   simpan_data()
 
 
@@ -2846,6 +2942,158 @@ async def usulan(interaction: discord.Interaction):
       "Usulan terbaru (paling baru di atas). Kalau cocok, jalankan"
       " /tambahfitur dengan usulan itu.\n" + "\n".join(baris)[:1700],
       ephemeral=True,
+  )
+
+
+async def kirim_ke_pemilik(teks):
+  kanal_id = os.getenv("KANTOR_CHANNEL_ID")
+  if kanal_id:
+    await kirim_ke_kanal(kanal_id, teks)
+    return
+  try:
+    pemilik = await client.fetch_user(PEMILIK_ID)
+    await pemilik.send(teks[:1900])
+  except Exception:
+    pass
+
+
+async def buat_laporan():
+  sejak = data.get("laporan_terakhir_waktu")
+  aktivitas = [
+      a
+      for a in data.get("aktivitas", [])
+      if not sejak or a["waktu"] > sejak
+  ][-30:]
+  baris = [f"[{a['jenis']}] {a['agen']}: {a['teks'][:200]}" for a in aktivitas]
+  catatan = []
+  for nama, daftar in data.get("catatan_agen", {}).items():
+    catatan += [f"{nama}: {c}" for c in daftar[-2:]]
+  jadwal_tunggu = len(data.get("jadwal", []))
+  if not baris:
+    return (
+        "Tidak ada aktivitas baru sejak laporan terakhir. Anggota tim saat"
+        f" ini: {anggota_tim()}. Jadwal yang menunggu: {jadwal_tunggu}."
+    )
+  tugas = (
+      "Aktivitas kantor sejak laporan terakhir:\n" + "\n".join(baris)
+      + "\n\nCatatan belajar terbaru:\n" + ("\n".join(catatan) or "(belum ada)")
+      + f"\n\nAnggota tim saat ini: {anggota_tim()}."
+      + f"\nJadwal yang menunggu: {jadwal_tunggu}."
+  )
+  hasil = await asyncio.to_thread(
+      panggil_agen_groq,
+      "Chat AI, penulis laporan harian kantor",
+      tugas,
+      (
+          "Tulis laporan untuk bos dalam Bahasa Indonesia. Gunakan hanya data"
+          " yang diberikan, jangan mengarang. Susun dengan judul bagian"
+          " Ringkasan, Yang dikerjakan tim, Catatan belajar, lalu Usulan atau"
+          " anggota baru kalau ada. Tanpa sapaan, tanpa tanda tangan, tanpa"
+          " tabel, tanpa emoji."
+      ),
+      180,
+      900,
+      0.4,
+  )
+  if galat_groq(hasil):
+    return "Laporan otomatis gagal dibuat karena layanan AI sedang bermasalah."
+  return bersihkan_placeholder(bersihkan_markdown(bersihkan_gaya(hasil)))
+
+
+async def kirim_laporan(label):
+  sekarang = sekarang_wib()
+  isi = await buat_laporan()
+  subjek = f"Laporan Kantor RyHanC, {label} {sekarang:%d/%m}"
+  pemilik = type("Pemilik", (), {"id": PEMILIK_ID})()
+  try:
+    hasil = await alat_kirim_email_pemilik(
+        {"member": pemilik}, subjek, bungkus_email(isi)
+    )
+    status = (
+        "Laporan terkirim ke email bos."
+        if hasil.get("berhasil")
+        else f"Email laporan gagal: {hasil.get('error')}"
+    )
+  except Exception as e:
+    status = f"Email laporan gagal: {bersihkan_error(e)}"
+  data["laporan_terakhir_waktu"] = datetime.now(timezone.utc).isoformat()
+  simpan_data()
+  await catat_kantor("chatai", f"{subjek}. {status}", "aksi")
+  await kirim_ke_pemilik(f"**Laporan {label}**\n{isi}\n\n{status}"[:1900])
+  return status
+
+
+async def loop_laporan():
+  await client.wait_until_ready()
+  while not client.is_closed():
+    try:
+      sekarang = sekarang_wib()
+      terkirim = data.setdefault("laporan_kirim", [])
+      for slot in os.getenv("KANTOR_LAPORAN_JAM", "08:00,20:00").split(","):
+        slot = slot.strip()
+        if not re.fullmatch(r"\d{1,2}:\d{2}", slot):
+          continue
+        jam, menit = map(int, slot.split(":"))
+        target = sekarang.replace(hour=jam, minute=menit, second=0, microsecond=0)
+        kunci = f"{sekarang:%Y-%m-%d} {jam:02d}:{menit:02d}"
+        selisih = (sekarang - target).total_seconds()
+        if 0 <= selisih < 5400 and kunci not in terkirim:
+          terkirim.append(kunci)
+          del terkirim[:-10]
+          simpan_data()
+          await kirim_laporan("pagi" if jam < 15 else "malam")
+    except Exception as e:
+      print(f"Laporan error: {bersihkan_error(e)}")
+    await asyncio.sleep(60)
+
+
+@tree.command(
+    name="laporan", description="Kirim laporan kantor sekarang ke email (khusus pemilik)"
+)
+async def laporan(interaction: discord.Interaction):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  await interaction.response.defer(ephemeral=True)
+  status = await kirim_laporan("manual")
+  await interaction.followup.send(status, ephemeral=True)
+
+
+@tree.command(name="staf", description="Lihat anggota tim, termasuk yang direkrut sendiri (khusus pemilik)")
+async def staf(interaction: discord.Interaction):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  baris = [f"Anggota tim: {anggota_tim()}."]
+  for s in daftar_staf():
+    baris.append(f"{s['nama']}: {s['peran']}. Alasan: {s['alasan']}")
+  await interaction.response.send_message("\n".join(baris)[:1900], ephemeral=True)
+
+
+@tree.command(name="pecat", description="Keluarkan anggota rekrutan tim (khusus pemilik)")
+@app_commands.describe(nama="Nama anggota dari perintah /staf")
+async def pecat(interaction: discord.Interaction, nama: str):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  nama = nama.strip().lower()
+  sisa = [s for s in daftar_staf() if s["nama"] != nama]
+  if len(sisa) == len(daftar_staf()):
+    await interaction.response.send_message(
+        "Anggota itu tidak ditemukan di daftar rekrutan.", ephemeral=True
+    )
+    return
+  data["staf"] = sisa
+  data.get("catatan_agen", {}).pop(nama, None)
+  simpan_data()
+  await interaction.response.send_message(
+      f"{nama.capitalize()} sudah dikeluarkan dari tim.", ephemeral=True
   )
 
 
@@ -3060,6 +3308,15 @@ def catat_kantor_sinkron(agen, teks, jenis):
 
 
 async def catat_kantor(agen, teks, jenis="obrolan"):
+  aktivitas = data.setdefault("aktivitas", [])
+  aktivitas.append({
+      "waktu": datetime.now(timezone.utc).isoformat(),
+      "agen": agen,
+      "teks": teks[:300],
+      "jenis": jenis,
+  })
+  del aktivitas[:-80]
+  simpan_data()
   await asyncio.to_thread(catat_kantor_sinkron, agen, teks, jenis)
 
 
@@ -3150,32 +3407,75 @@ AKSI_KANTOR = {
 }
 
 
-def tulis_email_groq(tugas, ringkasan):
-  hasil = panggil_agen_groq(
-      "Asisten Penulis Email",
-      (
-          f"Permintaan pemilik: {tugas}\n\nKeputusan tim: {ringkasan}\n\n"
-          "Tulis email sesuai permintaan itu."
-      ),
-      (
-          "Balas hanya satu objek JSON dengan kunci subjek dan isi, tanpa teks"
-          " lain. Isi email dalam Bahasa Indonesia yang sopan, singkat, dan"
-          " jelas."
-      ),
-      150,
-      1200,
+def ada_placeholder(teks):
+  return bool(
+      re.search(
+          r"\[[^\]]{1,40}\]|yourrepo|your name|example\.com|yth\. tim",
+          teks,
+          re.IGNORECASE,
+      )
   )
-  cocok = re.search(r"\{.*\}", hasil, re.DOTALL)
-  if cocok:
+
+
+def bersihkan_placeholder(teks):
+  teks = re.sub(r"\[[^\]]{1,40}\]", "", teks)
+  teks = re.sub(
+      r"https?://\S*(?:yourrepo|example\.com|your[-_]?domain)\S*",
+      "",
+      teks,
+      flags=re.IGNORECASE,
+  )
+  return teks.strip()
+
+
+def bersihkan_markdown(teks):
+  teks = re.sub(r"\*\*|__|`", "", teks)
+  return re.sub(r"^#+\s*", "", teks, flags=re.MULTILINE)
+
+
+def bungkus_email(isi):
+  return f"Halo Bos,\n\n{isi.strip()}\n\nSalam,\nChat AI\nKantor RyHanC"
+
+
+def tulis_email_groq(tugas, ringkasan):
+  instruksi = (
+      "Balas hanya satu objek JSON dengan kunci subjek dan isi, tanpa teks"
+      " lain. Isi hanya berisi badan email dalam Bahasa Indonesia yang sopan,"
+      " singkat, dan jelas. Jangan menulis sapaan pembuka maupun tanda tangan,"
+      " karena keduanya ditambahkan otomatis. Jangan memakai placeholder"
+      " seperti [Nama], dan jangan membuat tautan, nama orang, atau tim yang"
+      " tidak ada. Hanya pakai fakta dari permintaan dan data yang diberikan."
+      " Penerima email adalah pemilik bot sendiri."
+  )
+  tugas_email = (
+      f"Permintaan pemilik: {tugas}\n\nKeputusan tim: {ringkasan}\n\n"
+      "Tulis email sesuai permintaan itu."
+  )
+  subjek, isi = "", ""
+  for _ in range(2):
+    hasil = panggil_agen_groq(
+        "Asisten Penulis Email", tugas_email, instruksi, 150, 1200, 0.5
+    )
+    cocok = re.search(r"\{.*\}", hasil, re.DOTALL)
+    if not cocok:
+      continue
     try:
       obj = json.loads(cocok.group(0), strict=False)
-      subjek = str(obj.get("subjek", "")).strip()
-      isi = str(obj.get("isi", "")).strip()
-      if subjek and isi:
-        return subjek, isi
     except ValueError:
-      pass
-  return "Pesan dari bot", ringkasan
+      continue
+    subjek = bersihkan_placeholder(str(obj.get("subjek", "")))
+    isi = bersihkan_markdown(str(obj.get("isi", ""))).strip()
+    if subjek and isi and not ada_placeholder(subjek + isi):
+      break
+    tugas_email += (
+        "\n\nEmail sebelumnya masih berisi placeholder atau data palsu."
+        " Tulis ulang tanpa itu."
+    )
+  isi = bersihkan_placeholder(isi)
+  if not subjek or len(isi) < 15:
+    subjek = "Pesan dari Kantor RyHanC"
+    isi = bersihkan_placeholder(ringkasan) or tugas
+  return subjek, bungkus_email(isi)
 
 
 @tree.command(
@@ -3254,7 +3554,8 @@ async def kantor(
       )
       tugas_agen = (
           f"Topik dari user: {tugas}\n\nWaktu sekarang:"
-          f" {sekarang_wib():%H:%M} WIB.\n\n{info_data}\n\n{info_catatan}"
+          f" {sekarang_wib():%H:%M} WIB.\nAnggota tim saat ini:"
+          f" {anggota_tim()}.\n\n{info_data}\n\n{info_catatan}"
           f"Obrolan sejauh ini:\n"
           f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
           f" Fokus giliran ini: {fokus} Tulis satu pesan chat singkat."
