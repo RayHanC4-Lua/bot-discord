@@ -20,7 +20,7 @@
 }
 *{box-sizing:border-box;margin:0}
 html,body{background:var(--kertas);color:var(--teks);font-family:Nunito,system-ui,sans-serif;line-height:1.45}
-body{padding:14px 14px 28px;max-width:980px;margin:0 auto}
+body{padding:14px 14px 28px;max-width:980px;margin:0 auto;overflow-x:hidden}
 h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;line-height:1.1}
 .atas{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .status{display:flex;align-items:center;gap:7px;font-size:.85rem;font-weight:600}
@@ -29,35 +29,43 @@ h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;l
 .status.putus .titik{background:#d1495b}
 .tugas{background:var(--dinding);color:#fff;border-radius:14px;padding:11px 14px;font-size:.92rem;margin-bottom:12px}
 .tugas b{font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--sorot);margin-right:6px}
-.denah{display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
+.denah{position:relative;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
 .ruang{position:relative;min-height:176px;overflow:hidden;border-radius:8px}
 .ruang>.nama{position:absolute;left:8px;top:6px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.82rem;color:var(--dinding);background:rgba(255,255,255,.75);padding:0 8px;border-radius:8px;z-index:3}
 .m{grid-area:m;background:repeating-linear-gradient(90deg,var(--kayu) 0 22px,#dcbe90 22px 24px)}
 .s{grid-area:s;background:repeating-linear-gradient(0deg,var(--karpet) 0 14px,#c2d9cb 14px 16px)}
-.t{grid-area:t;background:var(--batu);min-height:190px}
+.t{grid-area:t;background:var(--batu);min-height:210px}
 .e{grid-area:e;background:repeating-linear-gradient(90deg,#d8dde6 0 30px,#cfd5e0 30px 32px);min-height:150px}
 .meja{position:absolute;background:var(--kayu-gelap);border-radius:6px;box-shadow:0 3px 0 rgba(0,0,0,.18)}
 .layar{position:absolute;width:30px;height:20px;background:#27344f;border:3px solid #4a5877;border-radius:3px}
 .tanaman{position:absolute;width:26px;height:26px;border-radius:50%;background:#4f9d69;box-shadow:inset -5px -5px 0 rgba(0,0,0,.14),0 5px 0 #8a5a3b}
-.bundar{left:50%;top:60%;width:150px;height:78px;margin-left:-75px;margin-top:-39px;border-radius:50%}
+.bundar{left:50%;top:64%;width:170px;height:80px;margin-left:-85px;margin-top:-40px;border-radius:50%}
 .kursi{position:absolute;width:20px;height:20px;border-radius:50%;background:#7184a8}
 .papan{position:absolute;right:10px;top:8px;width:46%;max-width:300px;min-height:56px;background:#fff;border:4px solid var(--dinding);border-radius:8px;padding:5px 8px;font-size:.74rem;line-height:1.3;z-index:3}
 .papan b{display:block;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--dinding)}
+.papan span{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .rak{position:absolute;bottom:14px;width:34px;height:66px;background:#35435f;border-radius:5px}
 .rak i{display:block;height:5px;margin:7px 6px 0;background:#2f9e6f;border-radius:3px;animation:kedip 2.4s infinite}
 .rak i:nth-child(2){animation-delay:.8s;background:var(--sorot)}
 .rak i:nth-child(3){animation-delay:1.6s}
 @keyframes kedip{50%{opacity:.25}}
-.agen{position:absolute;display:flex;flex-direction:column;align-items:center;width:84px;margin-left:-42px;z-index:4}
+.agen{position:absolute;left:0;top:0;width:84px;display:flex;flex-direction:column;align-items:center;z-index:5;transition-property:transform;transition-timing-function:ease-in-out;transition-duration:0s}
 .badan{position:relative;width:34px;height:40px;border-radius:14px 14px 8px 8px;background:var(--w)}
 .kepala{position:absolute;left:5px;top:-17px;width:24px;height:24px;border-radius:50%;background:#f1c9a5;box-shadow:inset 0 5px 0 var(--w)}
-.kepala:before,.kepala:after{content:"";position:absolute;top:13px;width:3px;height:3px;border-radius:50%;background:#3a2a1d}
+.kepala:before,.kepala:after{content:"";position:absolute;top:13px;width:3px;height:3px;border-radius:50%;background:#3a2a1d;animation:kedip-mata 4.5s infinite}
 .kepala:before{left:6px}.kepala:after{right:6px}
-.plat{margin-top:5px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.78rem;background:#fff;border-radius:8px;padding:0 8px;line-height:1.35}
+@keyframes kedip-mata{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+.kaki{position:absolute;left:6px;right:6px;bottom:-6px;display:flex;justify-content:space-between}
+.kaki i{width:10px;height:8px;background:#2a3550;border-radius:4px}
+.plat{margin-top:7px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.78rem;background:#fff;border-radius:8px;padding:0 8px;line-height:1.35}
 .agen.bicara .badan{animation:loncat .5s ease-in-out infinite alternate}
-@keyframes loncat{to{transform:translateY(-6px)}}
+.agen.jalan .badan{animation:loncat .26s ease-in-out infinite alternate}
+.agen.jalan .kaki i:nth-child(1){animation:langkah .26s ease-in-out infinite alternate}
+.agen.jalan .kaki i:nth-child(2){animation:langkah .26s ease-in-out infinite alternate-reverse}
+@keyframes loncat{to{transform:translateY(-5px)}}
+@keyframes langkah{to{transform:translateY(-4px)}}
 .gelembung{position:absolute;bottom:100%;margin-bottom:26px;left:50%;transform:translateX(-50%);width:max-content;max-width:min(220px,44vw);background:#fff;border:3px solid var(--sorot);border-radius:12px;padding:5px 9px;font-size:.76rem;line-height:1.3;display:none;z-index:6;box-shadow:0 3px 0 rgba(0,0,0,.12)}
-.gelembung:after{content:"";position:absolute;left:50%;top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--sorot)}
+.gelembung:after{content:"";position:absolute;left:calc(50% - var(--geser,0px));top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--sorot)}
 .agen.tampil .gelembung{display:block}
 .catatan{margin-top:16px}
 h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;margin-bottom:6px}
@@ -69,9 +77,9 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
 .kosong{padding:14px 0;color:#5b6780}
 @media(min-width:720px){
   .denah{grid-template-columns:1fr 1.15fr 1fr;grid-template-areas:"m t s" "e e e"}
-  .t{min-height:230px}
+  .t{min-height:240px}
 }
-@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:0s!important}}
 </style>
 </head>
 <body>
@@ -81,23 +89,22 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
 </div>
 <div class="tugas" id="tugas"><b>Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
 
-<div class="denah">
+<div class="denah" id="denah">
   <section class="ruang m">
     <span class="nama">Ruang Marketing</span>
     <div class="meja" style="left:18%;top:62%;width:64%;height:22px"></div>
     <div class="layar" style="left:34%;top:46%"></div>
     <div class="layar" style="left:56%;top:46%"></div>
     <div class="tanaman" style="right:8px;bottom:10px"></div>
-    <div class="agen" id="a-rian" style="left:50%;top:22%"><div class="gelembung"></div><div class="badan"><div class="kepala"></div></div><div class="plat">Rian</div></div>
   </section>
 
   <section class="ruang t">
     <span class="nama">Ruang Rapat</span>
-    <div class="papan" id="papan"><b>Keputusan tim</b><span id="papanTeks">Belum ada keputusan.</span></div>
+    <div class="papan"><b>Keputusan tim</b><span id="papanTeks">Belum ada keputusan.</span></div>
     <div class="meja bundar"></div>
-    <div class="kursi" style="left:36%;top:66%"></div>
-    <div class="kursi" style="left:60%;top:66%"></div>
-    <div class="kursi" style="left:48%;top:84%"></div>
+    <div class="kursi" style="left:27%;top:62%"></div>
+    <div class="kursi" style="left:68%;top:62%"></div>
+    <div class="kursi" style="left:48%;top:86%"></div>
     <div class="tanaman" style="left:10px;bottom:10px"></div>
   </section>
 
@@ -106,7 +113,6 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
     <div class="meja" style="left:14%;top:62%;width:70%;height:22px"></div>
     <div class="layar" style="left:30%;top:46%"></div>
     <div class="layar" style="left:56%;top:46%"></div>
-    <div class="agen" id="a-manager" style="left:50%;top:22%"><div class="gelembung"></div><div class="badan"><div class="kepala"></div></div><div class="plat">Manager</div></div>
   </section>
 
   <section class="ruang e">
@@ -114,8 +120,11 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
     <div class="rak" style="left:12%"><i></i><i></i><i></i></div>
     <div class="rak" style="left:calc(12% + 42px)"><i></i><i></i><i></i></div>
     <div class="rak" style="right:12%"><i></i><i></i><i></i></div>
-    <div class="agen" id="a-chatai" style="left:50%;top:34%"><div class="gelembung"></div><div class="badan"><div class="kepala"></div></div><div class="plat">Chat AI</div></div>
   </section>
+
+  <div class="agen" id="a-rian"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Rian</div></div>
+  <div class="agen" id="a-manager"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Manager</div></div>
+  <div class="agen" id="a-chatai"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Chat AI</div></div>
 </div>
 
 <div class="catatan">
@@ -123,29 +132,103 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
   <div class="log" id="log" aria-live="polite"><div class="kosong" id="kosong">Menunggu obrolan pertama dari bot.</div></div>
 </div>
 
+<script src="konfig.js"></script>
 <script>
-const KONFIG = {
-  url: "https://gfwuoiwcfmfsiymsgibk.supabase.co",
-  kunci: "sb_publishable_55aGa33INkPyvErR0VicXA_lh3wnGp6"
-};
 const AGEN = {
-  rian: { nama: "Rian", warna: "#e8a317" },
-  manager: { nama: "Manager", warna: "#2f9e6f" },
-  chatai: { nama: "Chat AI", warna: "#3b82c4" }
+  rian: { nama: "Rian", warna: "#e8a317", ruang: "m", rumah: [0.5, 0.22], kursi: [0.27, 0.34] },
+  manager: { nama: "Manager", warna: "#2f9e6f", ruang: "s", rumah: [0.5, 0.22], kursi: [0.69, 0.34] },
+  chatai: { nama: "Chat AI", warna: "#3b82c4", ruang: "e", rumah: [0.5, 0.34], kursi: [0.48, 0.58] }
 };
 const BATAS_GELEMBUNG = 25000;
 const BATAS_BICARA = 6000;
-let idTerakhir = 0;
+const LAMA_DI_RAPAT = 15000;
+const KECEPATAN = 150;
+const kurangiGerak = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const denah = document.getElementById("denah");
+const ruangEl = {
+  m: document.querySelector(".ruang.m"),
+  s: document.querySelector(".ruang.s"),
+  t: document.querySelector(".ruang.t"),
+  e: document.querySelector(".ruang.e")
+};
 const terbaru = {};
+const keadaan = {};
+let idTerakhir = 0;
 
 for (const k in AGEN) {
   const el = document.getElementById("a-" + k);
   el.querySelector(".badan").style.setProperty("--w", AGEN[k].warna);
+  keadaan[k] = { el: el, lokasi: "rumah", x: 0, y: 0, pulang: null, henti: null, sibuk: false };
+}
+
+function titik(ruang, px, py) {
+  const d = denah.getBoundingClientRect();
+  const a = ruangEl[ruang].getBoundingClientRect();
+  return {
+    x: a.left - d.left - denah.clientLeft + a.width * px - 42,
+    y: a.top - d.top - denah.clientTop + a.height * py
+  };
+}
+function titikRumah(k) { return titik(AGEN[k].ruang, AGEN[k].rumah[0], AGEN[k].rumah[1]); }
+function titikKursi(k) { return titik("t", AGEN[k].kursi[0], AGEN[k].kursi[1]); }
+
+function taruh(k, x, y, detik) {
+  const s = keadaan[k];
+  s.el.style.transitionDuration = detik + "s";
+  s.el.style.transform = "translate(" + x + "px," + y + "px)";
+  s.x = x;
+  s.y = y;
+}
+
+function jalanKe(k, x, y) {
+  const s = keadaan[k];
+  const jarak = Math.hypot(x - s.x, y - s.y);
+  const detik = kurangiGerak ? 0 : Math.min(3.2, Math.max(0.6, jarak / KECEPATAN));
+  taruh(k, x, y, detik);
+  if (detik > 0 && jarak > 2) {
+    s.el.classList.add("jalan");
+    clearTimeout(s.henti);
+    s.henti = setTimeout(function () { s.el.classList.remove("jalan"); }, detik * 1000 + 60);
+  }
+}
+
+function pergi(k, tujuan) {
+  keadaan[k].lokasi = tujuan;
+  const t = tujuan === "rapat" ? titikKursi(k) : titikRumah(k);
+  jalanKe(k, t.x, t.y);
+}
+
+function susun() {
+  for (const k in AGEN) {
+    const t = keadaan[k].lokasi === "rapat" ? titikKursi(k) : titikRumah(k);
+    taruh(k, t.x, t.y, 0);
+  }
+}
+
+function bicara(k) {
+  const s = keadaan[k];
+  if (s.lokasi !== "rapat") pergi(k, "rapat");
+  clearTimeout(s.pulang);
+  s.pulang = setTimeout(function () { pergi(k, "rumah"); }, LAMA_DI_RAPAT);
+}
+
+function iseng() {
+  const nama = Object.keys(AGEN);
+  const k = nama[Math.floor(Math.random() * nama.length)];
+  const s = keadaan[k];
+  if (s.lokasi !== "rumah" || s.sibuk || Math.random() > 0.45) return;
+  s.sibuk = true;
+  const rumah = titikRumah(k);
+  const lebar = ruangEl[AGEN[k].ruang].getBoundingClientRect().width;
+  jalanKe(k, rumah.x + (Math.random() - 0.5) * lebar * 0.5, rumah.y + (Math.random() - 0.3) * 14);
+  setTimeout(function () {
+    if (s.lokasi === "rumah") pergi(k, "rumah");
+    s.sibuk = false;
+  }, 3800);
 }
 
 function setStatus(kelas, teks) {
-  const s = document.getElementById("status");
-  s.className = "status " + kelas;
+  document.getElementById("status").className = "status " + kelas;
   document.getElementById("statusTeks").textContent = teks;
 }
 
@@ -153,16 +236,18 @@ function jam(iso) {
   return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 
-function terapkan(baris) {
+function terapkan(baris, awal) {
   idTerakhir = Math.max(idTerakhir, baris.id);
   const waktu = Date.parse(baris.dibuat);
+  const segar = !awal && Date.now() - waktu < BATAS_GELEMBUNG;
   if (baris.jenis === "tugas") {
     document.getElementById("tugasTeks").textContent = baris.teks.replace(/^Tugas dari bos:\s*/, "");
   } else if (baris.jenis === "keputusan") {
     document.getElementById("papanTeks").textContent = baris.teks;
   }
   if (AGEN[baris.agen]) {
-    terbaru[baris.agen] = { teks: baris.teks, waktu: waktu };
+    terbaru[baris.agen] = { teks: baris.teks, waktu: waktu, mulai: segar ? Date.now() : 0 };
+    if (segar) bicara(baris.agen);
   }
   const log = document.getElementById("log");
   const kosong = document.getElementById("kosong");
@@ -186,14 +271,28 @@ function terapkan(baris) {
 
 function tampil() {
   const sekarang = Date.now();
+  const d = denah.getBoundingClientRect();
   for (const k in AGEN) {
-    const el = document.getElementById("a-" + k);
+    const el = keadaan[k].el;
     const data = terbaru[k];
     const umur = data ? sekarang - data.waktu : Infinity;
     const gel = el.querySelector(".gelembung");
     if (data && umur < BATAS_GELEMBUNG) {
-      if (gel.textContent !== data.teks) gel.textContent = data.teks;
+      let teks = data.teks;
+      if (data.mulai) {
+        const n = Math.max(1, Math.floor((sekarang - data.mulai) / 28));
+        if (n < teks.length) teks = teks.slice(0, n);
+      }
+      if (gel.textContent !== teks) gel.textContent = teks;
       el.classList.add("tampil");
+      const kotak = el.getBoundingClientRect();
+      const tengah = kotak.left - d.left - denah.clientLeft + 42;
+      const lebar = gel.offsetWidth;
+      let geser = 0;
+      if (tengah - lebar / 2 < 4) geser = 4 - (tengah - lebar / 2);
+      else if (tengah + lebar / 2 > denah.clientWidth - 4) geser = denah.clientWidth - 4 - (tengah + lebar / 2);
+      gel.style.transform = "translateX(calc(-50% + " + geser + "px))";
+      gel.style.setProperty("--geser", geser + "px");
     } else {
       el.classList.remove("tampil");
     }
@@ -209,13 +308,19 @@ async function ambil(awal) {
   if (!r.ok) throw new Error("kode " + r.status);
   const baris = await r.json();
   if (awal) baris.reverse();
-  baris.forEach(terapkan);
+  baris.forEach(function (b) { terapkan(b, awal); });
 }
 
 async function mulai() {
-  if (KONFIG.url.indexOf("ISI_") === 0 || KONFIG.kunci.indexOf("ISI_") === 0) {
+  susun();
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(susun).observe(denah);
+  window.addEventListener("resize", susun);
+  window.addEventListener("load", susun);
+  setInterval(tampil, 150);
+  setInterval(iseng, 6000);
+  if (typeof KONFIG === "undefined" || !KONFIG.url || !KONFIG.kunci) {
     setStatus("putus", "Belum diatur");
-    document.getElementById("tugasTeks").textContent = "Isi alamat Supabase dan kunci anon di bagian atas file index.html.";
+    document.getElementById("tugasTeks").textContent = "Buat file konfig.js di folder web berisi alamat Supabase dan kunci anon.";
     return;
   }
   try {
@@ -224,16 +329,14 @@ async function mulai() {
   } catch (e) {
     setStatus("putus", "Terputus");
   }
-  setInterval(async () => {
+  setInterval(async function () {
     try {
       await ambil(false);
       setStatus("hidup", "Langsung");
     } catch (e) {
       setStatus("putus", "Terputus");
     }
-  }, 3000);
-  setInterval(tampil, 1000);
-  tampil();
+  }, 2500);
 }
 mulai();
 </script>
