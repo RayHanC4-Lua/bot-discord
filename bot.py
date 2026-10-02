@@ -2,6 +2,7 @@ import ast
 import asyncio
 import base64
 import contextlib
+import difflib
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -626,7 +627,12 @@ def kirim_groq(payload, timeout=90):
 
 
 def panggil_agen_groq(
-    peran, tugas, instruksi_tambahan="", batas_kata=200, maks_token=1200
+    peran,
+    tugas,
+    instruksi_tambahan="",
+    batas_kata=200,
+    maks_token=1200,
+    suhu=0.7,
 ):
   sistem = (
       f"Bertindaklah sebagai {peran}. Jawab dalam Bahasa Indonesia, ringkas"
@@ -639,7 +645,7 @@ def panggil_agen_groq(
           {"role": "system", "content": sistem},
           {"role": "user", "content": tugas},
       ],
-      "temperature": 0.7,
+      "temperature": suhu,
       "max_completion_tokens": maks_token,
   })
 
@@ -2690,6 +2696,58 @@ def aksi_buat_repo_github(tugas, ringkasan):
   )
 
 
+POLA_EMOJI = r"[\U0001F300-\U0001FAFF\u2600-\u27BF]"
+KATA_SELESAI = r"\b(?:selesai|beres|berhasil|terkirim|sukses)\b"
+FOKUS_RONDE = [
+    "Sampaikan usulan awalmu.",
+    "Tanggapi rekanmu, lalu tambahkan risiko atau hal yang terlewat.",
+    "Usulkan langkah konkret dan siapa mengerjakan apa.",
+    "Sepakati rencana akhir dengan singkat, tanpa mengulang yang sudah dibahas.",
+]
+
+
+def bersihkan_gaya(teks):
+  teks = re.sub(r"\b(?:(?:wk){2,}\w*|(?:ha){2,}h?)\b", "", teks, flags=re.IGNORECASE)
+  emoji = re.findall(POLA_EMOJI, teks)
+  teks = re.sub(POLA_EMOJI + r"|[\uFE0F\u200D]", "", teks)
+  teks = re.sub(r"[ \t]{2,}", " ", teks).strip()
+  if emoji and re.search(KATA_SELESAI, teks, re.IGNORECASE):
+    teks = f"{teks} {emoji[0]}"
+  return teks
+
+
+def terlalu_mirip(teks, pembanding):
+  return any(
+      difflib.SequenceMatcher(None, teks.lower(), t.lower()).ratio() > 0.62
+      for t in pembanding
+  )
+
+
+def catat_kantor_sinkron(agen, teks, jenis):
+  alamat = os.getenv("SUPABASE_URL")
+  kunci = os.getenv("SUPABASE_SERVICE_KEY")
+  if not alamat or not kunci:
+    return
+  try:
+    requests.post(
+        f"{alamat.rstrip('/')}/rest/v1/kantor_pesan",
+        headers={
+            "apikey": kunci,
+            "Authorization": f"Bearer {kunci}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json={"agen": agen, "teks": teks[:1500], "jenis": jenis},
+        timeout=10,
+    )
+  except Exception:
+    pass
+
+
+async def catat_kantor(agen, teks, jenis="obrolan"):
+  await asyncio.to_thread(catat_kantor_sinkron, agen, teks, jenis)
+
+
 def kumpulkan_data_nyata(tugas):
   teks = tugas.lower()
   bagian = []
@@ -2827,22 +2885,28 @@ async def kantor(
   transkrip = []
   tanpa_ping = discord.AllowedMentions.none()
   bahan_nyata = await asyncio.to_thread(kumpulkan_data_nyata, tugas)
+  await catat_kantor("sistem", f"Tugas dari bos: {tugas}", "tugas")
   nama_agen = {
-      "Marketing Manager": "rian",
+      "Marketing Manager": "pranowo",
       "Software House Manager": "manager",
   }
   gaya_chat = (
-      "Balas seperti chat WhatsApp antar teman satu kantor, dalam Bahasa"
-      " Indonesia santai sehari-hari. Selipkan paling banyak satu atau dua"
-      " kata Inggris yang lazim di kantor (misalnya btw, noted, deadline),"
-      " jangan menulis kalimat penuh dalam bahasa Inggris. Emoji maksimal"
-      " satu dan tidak wajib di setiap pesan. Boleh bercanda dikit seperti"
-      " wkwk. Cukup 1 sampai 2 kalimat, tanpa poin, judul, atau tabel."
-      " Tanggapi omongan rekanmu lalu beri usulan atau keputusan."
+      "Balas seperti chat singkat antar rekan kerja: santai tapi"
+      " profesional, dalam Bahasa Indonesia saja (kata Inggris hanya yang"
+      " lazim sekali seperti deadline atau meeting). Cukup 1 sampai 2"
+      " kalimat, tanpa poin, judul, atau tabel. Jangan menyalin atau"
+      " mengulang kalimat rekanmu maupun kalimat user. Jangan memakai wkwk"
+      " atau emoji. Setiap pesan wajib menambah satu hal baru."
   )
   watak = {
-      "rian": "Wataknya ceria, ekspresif, dan suka bercanda.",
-      "manager": "Wataknya tenang, to the point, tapi tetap friendly.",
+      "pranowo": (
+          "Kamu Pranowo, Marketing Manager. Sudut pandangmu: audiens, pesan,"
+          " waktu, dan hasil bagi bisnis."
+      ),
+      "manager": (
+          "Kamu Manager Software House. Sudut pandangmu: langkah teknis,"
+          " risiko, dan perkiraan waktu."
+      ),
   }
 
   def mengetik():
@@ -2853,7 +2917,16 @@ async def kantor(
   async def jeda_berpikir(teks=""):
     await asyncio.sleep(random.uniform(3, 6) + min(3, len(teks) / 60))
 
+  berhenti = False
   for nomor in range(ronde):
+    if berhenti:
+      break
+    if nomor == 0:
+      fokus = FOKUS_RONDE[0]
+    elif nomor == ronde - 1:
+      fokus = FOKUS_RONDE[3]
+    else:
+      fokus = FOKUS_RONDE[min(nomor, 2)]
     for peran in PERAN_KANTOR:
       nama = nama_agen[peran]
       riwayat = "\n".join(f"{nama_agen[p]}: {t}" for p, t in transkrip)[-2000:]
@@ -2871,17 +2944,43 @@ async def kantor(
       tugas_agen = (
           f"Topik dari user: {tugas}\n\n{info_data}\n\nObrolan sejauh ini:\n"
           f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
-          " Tulis satu pesan chat singkat."
+          f" Fokus giliran ini: {fokus} Tulis satu pesan chat singkat."
       )
+      suhu = 0.85
+      balasan = ""
       async with mengetik():
-        balasan = await asyncio.to_thread(
-            panggil_agen_groq, peran, tugas_agen, f"{gaya_chat} {watak[nama]}", 45, 800
-        )
-        await jeda_berpikir(balasan)
+        for percobaan in range(3):
+          balasan = bersihkan_gaya(
+              await asyncio.to_thread(
+                  panggil_agen_groq,
+                  peran,
+                  tugas_agen,
+                  f"{gaya_chat} {watak[nama]}",
+                  45,
+                  800,
+                  suhu,
+              )
+          )
+          if not transkrip or not terlalu_mirip(
+              balasan, [t for _, t in transkrip[-4:]]
+          ):
+            break
+          tugas_agen += (
+              "\n\nJawabanmu tadi terlalu mirip dengan obrolan yang sudah"
+              " ada. Tulis ulang dengan hal baru yang berbeda."
+          )
+          suhu = 0.95
+        else:
+          berhenti = True
+        if not berhenti:
+          await jeda_berpikir(balasan)
+      if berhenti:
+        break
       transkrip.append((peran, balasan))
       await interaction.followup.send(
           f"**@{nama}**: {balasan}"[:1900], allowed_mentions=tanpa_ping
       )
+      await catat_kantor(nama, balasan)
 
   daftar_aksi = ", ".join(AKSI_KANTOR)
   riwayat = "\n".join(f"{nama_agen[p]}: {t}" for p, t in transkrip)[-2500:]
@@ -2911,10 +3010,11 @@ async def kantor(
     for nama in re.findall(r"[a-z_]+", cocok.group(1).lower()):
       if nama in AKSI_KANTOR and nama not in terpilih:
         terpilih.append(nama)
-  ringkasan = re.sub(r"\n?.*AKSI:.*", "", keputusan).strip()
+  ringkasan = bersihkan_gaya(re.sub(r"\n?.*AKSI:.*", "", keputusan).strip())
   await interaction.followup.send(
       f"**@keputusan**: {ringkasan}"[:1900], allowed_mentions=tanpa_ping
   )
+  await catat_kantor("keputusan", ringkasan, "keputusan")
 
   if terpilih and not eksekusi:
     await interaction.followup.send(
@@ -2953,7 +3053,7 @@ async def kantor(
     async with mengetik():
       await jeda_berpikir()
     await interaction.followup.send(
-        "**@rian**: @chatai, tolong eksekusi keputusan tadi ya, sesuai request"
+        "**@pranowo**: @chatai, tolong eksekusi keputusan tadi ya, sesuai request"
         " bos.",
         allowed_mentions=tanpa_ping,
     )
@@ -2972,6 +3072,7 @@ async def kantor(
         await interaction.followup.send(
             f"**@chatai**: {hasil}"[:1900], allowed_mentions=tanpa_ping
         )
+        await catat_kantor("chatai", hasil, "aksi")
     else:
       perintah_chat = (
           f"Permintaan pemilik bot: {tugas}\n\nKeputusan tim: {ringkasan}\n\n"
@@ -4171,6 +4272,127 @@ async def pushgithub(
   except Exception as e:
     hasil = f"Gagal mengirim ke GitHub: {bersihkan_error(e)}"
   await interaction.followup.send(hasil[:1900])
+
+
+README_REPO = """# bot-discord
+
+Bot Discord multifungsi berbasis discord.py. Berjalan di Termux (Android) dan memakai model AI lokal atau layanan AI online.
+
+## Fitur utama
+
+- Chat AI di channel memakai model lokal (llama.server) atau Gemini
+- Tim agen AI lewat /kantor: dua agen berdiskusi, mengambil keputusan, lalu menjalankan aksi
+- Aksi otomatis: bersihkan file lama, segarkan bot, kirim email ke pemilik, buat repo GitHub
+- Fitur tambahan buatan AI lewat /tambahfitur, langsung aktif tanpa restart
+- Kirim file ke GitHub lewat /pushgithub, /uploadbot, dan /rapikanrepo
+- Pengaturan server seperti log, welcome, autorole, antispam, sticky message, dan pricelist
+
+## Persiapan
+
+1. Pasang paket yang dibutuhkan:
+
+```
+pip install -r requirements.txt
+```
+
+2. Buat file .env di folder yang sama dengan bot.py. File ini tidak boleh diunggah ke GitHub. Isinya:
+
+```
+DISCORD_TOKEN=
+GROQ_API_KEY=
+GEMINI_API_KEY=
+GEMINI_MODEL=
+AI_BASE_URL=
+AI_API_KEY=
+AI_MODEL=
+SMTP_USER=
+SMTP_PASSWORD=
+EMAIL_PEMILIK=
+GITHUB_TOKEN=
+```
+
+3. Isi PEMILIK_ID di bot.py dengan ID Discord pemilik bot.
+
+4. Jalankan bot:
+
+```
+python bot.py
+```
+
+## Perintah khusus pemilik
+
+- /kantor: diskusi tim agen AI, bisa dengan opsi eksekusi
+- /tambahfitur dan /hapusfitur: tambah atau copot fitur buatan AI
+- /refresh dan /restart: segarkan atau nyalakan ulang bot
+- /cekenv: periksa apakah isi .env sudah terbaca
+- /pushgithub, /uploadbot, /rapikanrepo: kirim file ke GitHub
+
+## Keamanan
+
+- Jangan menaruh token atau key di dalam kode, semuanya lewat file .env
+- File .gitignore sudah mengecualikan .env dan data bot
+- Perintah pengiriman ke GitHub menolak file yang berisi pola key atau token
+"""
+
+REQUIREMENTS_REPO = """discord.py
+python-dotenv
+Pillow
+requests
+yt-dlp
+"""
+
+GITIGNORE_REPO = """.env
+bot_config.json
+__pycache__/
+*.pyc
+unduhan/
+file_ai/
+banners/
+ekstensi/
+*.log
+"""
+
+BERKAS_REPO = [
+    ("README.md", README_REPO, "Tambah README"),
+    ("requirements.txt", REQUIREMENTS_REPO, "Tambah daftar paket"),
+    (".gitignore", GITIGNORE_REPO, "Tambah gitignore"),
+]
+
+
+@tree.command(
+    name="rapikanrepo",
+    description="Kirim README, requirements.txt, dan .gitignore ke repo GitHub (khusus pemilik)",
+)
+@app_commands.describe(
+    repo="Nama repo saja, contoh: bot-discord",
+    cabang="Nama cabang (opsional)",
+)
+async def rapikanrepo(
+    interaction: discord.Interaction, repo: str, cabang: str = ""
+):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  await interaction.response.defer()
+  baris = []
+  for jalur, isi, pesan in BERKAS_REPO:
+    try:
+      hasil = await asyncio.to_thread(
+          push_ke_github,
+          repo.strip(),
+          jalur,
+          isi.encode("utf-8"),
+          pesan,
+          cabang.strip(),
+      )
+    except Exception as e:
+      hasil = f"Gagal: {bersihkan_error(e)}"
+    baris.append(f"{jalur}: {hasil}")
+    if "tidak ditemukan" in hasil or "ditolak" in hasil:
+      break
+  await interaction.followup.send("\n".join(baris)[:1900])
 
 
 @tree.command(
