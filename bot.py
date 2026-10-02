@@ -1437,6 +1437,10 @@ async def on_ready():
   if WAKTU_MULAI is None:
     WAKTU_MULAI = discord.utils.utcnow()
   await tree.sync()
+  if not getattr(client, "_tugas_latar", False):
+    client._tugas_latar = True
+    asyncio.create_task(loop_penjadwal())
+    asyncio.create_task(loop_rutinitas())
   for br in data.get("button_roles", []):
     client.add_view(
         DynamicRoleView(br["role_id"], br["label"]), message_id=br["message_id"]
@@ -2534,6 +2538,317 @@ async def hapusbanner(interaction: discord.Interaction):
     )
 
 
+WIB = timezone(timedelta(hours=int(os.getenv("TZ_OFFSET", "7"))))
+TOPIK_RUTIN = [
+    "evaluasi alur kerja tim minggu ini",
+    "ide fitur baru yang berguna untuk bot Discord",
+    "cara menjaga bot tetap ringan dan rapi",
+    "ide konten atau promosi untuk server",
+    "hal yang bisa diotomatiskan supaya bos tidak repot",
+]
+GAYA_CHAT = (
+    "Balas seperti chat singkat antar rekan kerja: santai tapi"
+    " profesional, dalam Bahasa Indonesia saja (kata Inggris hanya yang"
+    " lazim sekali seperti deadline atau meeting). Cukup 1 sampai 2"
+    " kalimat, tanpa poin, judul, atau tabel. Jangan menyalin atau"
+    " mengulang kalimat rekanmu maupun kalimat user. Jangan memakai wkwk"
+    " atau emoji. Setiap pesan wajib menambah satu hal baru. Hanya ada tiga"
+    " anggota tim: Pranowo, Manager, dan Chat AI. Jangan menyebut nama orang,"
+    " tim, divisi, atau sistem lain yang tidak ada, dan jangan mengarang"
+    " tenggat, angka, atau aturan hukum yang tidak disebut di perintah user."
+)
+WATAK_AGEN = {
+    "pranowo": (
+        "Kamu Pranowo, Marketing Manager. Sudut pandangmu: audiens, pesan,"
+        " waktu, dan hasil bagi bisnis."
+    ),
+    "manager": (
+        "Kamu Manager Software House. Sudut pandangmu: langkah teknis,"
+        " risiko, dan perkiraan waktu."
+    ),
+}
+
+
+def sekarang_wib():
+  return datetime.now(WIB)
+
+
+def deteksi_waktu(teks, sekarang):
+  t = teks.lower()
+  rel = re.search(r"(\d+)\s*(menit|jam)\s*(?:lagi|dari sekarang)", t)
+  if rel:
+    n = int(rel.group(1))
+    if rel.group(2) == "menit":
+      return sekarang + timedelta(minutes=n)
+    return sekarang + timedelta(hours=n)
+  cocok = [
+      m
+      for m in re.finditer(r"(?:jam|pukul)\s*(\d{1,2})(?:[:.](\d{2}))?", t)
+      if "sekarang" not in t[max(0, m.start() - 14) : m.start()]
+  ]
+  if not cocok:
+    return None
+  m = cocok[-1]
+  jam = int(m.group(1))
+  menit = int(m.group(2) or 0)
+  if jam < 12 and re.search(r"sore|malam", t[m.end() : m.end() + 12]):
+    jam += 12
+  if jam > 23 or menit > 59:
+    return None
+  hari = 1 if "besok" in t else (2 if "lusa" in t else 0)
+  return sekarang.replace(
+      hour=jam, minute=menit, second=0, microsecond=0
+  ) + timedelta(days=hari)
+
+
+def tambah_jadwal(job):
+  daftar = data.setdefault("jadwal", [])
+  job["id"] = max([j["id"] for j in daftar] + [0]) + 1
+  daftar.append(job)
+  simpan_data()
+  return job["id"]
+
+
+async def kirim_ke_kanal(kanal_id, teks):
+  if not kanal_id:
+    return
+  kanal = client.get_channel(int(kanal_id))
+  if kanal is None:
+    return
+  try:
+    await kanal.send(
+        teks[:1900], allowed_mentions=discord.AllowedMentions.none()
+    )
+  except Exception:
+    pass
+
+
+async def jalankan_jadwal(job, terlambat):
+  if terlambat > 1800:
+    pesan = (
+        f"Jadwal nomor {job['id']} terlewat karena bot sedang mati, jadi"
+        " email tidak dikirim."
+    )
+  else:
+    pemilik = type("Pemilik", (), {"id": PEMILIK_ID})()
+    try:
+      hasil = await alat_kirim_email_pemilik(
+          {"member": pemilik}, job["subjek"], job["isi"]
+      )
+      if hasil.get("berhasil"):
+        pesan = (
+            "Pengingat terkirim ke email bos sesuai jadwal. Subjeknya:"
+            f" {job['subjek']}"
+        )
+      else:
+        pesan = f"Pengingat gagal dikirim: {hasil.get('error')}"
+    except Exception as e:
+      pesan = f"Pengingat gagal dikirim: {bersihkan_error(e)}"
+  await catat_kantor("chatai", pesan, "aksi")
+  await kirim_ke_kanal(job.get("channel_id"), f"**@chatai**: {pesan}")
+
+
+async def loop_penjadwal():
+  await client.wait_until_ready()
+  while not client.is_closed():
+    try:
+      sekarang = datetime.now(timezone.utc)
+      for job in list(data.get("jadwal", [])):
+        waktu = datetime.fromisoformat(job["waktu"])
+        if waktu <= sekarang:
+          data["jadwal"].remove(job)
+          simpan_data()
+          await jalankan_jadwal(job, (sekarang - waktu).total_seconds())
+    except Exception as e:
+      print(f"Penjadwal error: {bersihkan_error(e)}")
+    await asyncio.sleep(20)
+
+
+def catat_belajar(nama, teks):
+  daftar = data.setdefault("catatan_agen", {}).setdefault(nama, [])
+  daftar.append(teks[:200])
+  del daftar[:-8]
+
+
+def galat_groq(teks):
+  return teks.startswith(("Error API", "Exception error"))
+
+
+async def satu_siklus_rutin():
+  if 0 <= sekarang_wib().hour < 6:
+    return
+  kanal_id = os.getenv("KANTOR_CHANNEL_ID")
+  tugas_lama = data.get("riwayat_tugas", [])[-3:]
+  if tugas_lama and random.random() < 0.5:
+    topik = "tindak lanjut tugas bos: " + random.choice(tugas_lama)
+  else:
+    topik = random.choice(TOPIK_RUTIN)
+  pemeran = [("Marketing Manager", "pranowo"), ("Software House Manager", "manager")]
+  obrolan = []
+  await catat_kantor("sistem", f"Obrolan santai di kantor tentang: {topik}", "rutin")
+  for giliran in range(3):
+    peran, nama = pemeran[giliran % 2]
+    riwayat = "\n".join(f"{n}: {t}" for n, t in obrolan)[-1500:]
+    catatan = data.get("catatan_agen", {}).get(nama, [])[-3:]
+    info_catatan = (
+        "Catatan pribadimu dari pengalaman sebelumnya:\n- "
+        + "\n- ".join(catatan)
+        + "\n\n"
+        if catatan
+        else ""
+    )
+    tugas_agen = (
+        f"Topik obrolan santai di kantor (bukan perintah dari bos): {topik}"
+        f"\n\nWaktu sekarang: {sekarang_wib():%H:%M} WIB.\n\n{info_catatan}"
+        f"Obrolan sejauh ini:\n{riwayat or '(belum ada)'}\n\nSekarang"
+        f" giliranmu sebagai {nama}. Tulis satu pesan chat singkat yang"
+        " menambah hal baru."
+    )
+    balasan = bersihkan_gaya(
+        await asyncio.to_thread(
+            panggil_agen_groq,
+            peran,
+            tugas_agen,
+            f"{GAYA_CHAT} {WATAK_AGEN[nama]}",
+            45,
+            800,
+            0.9,
+        )
+    )
+    if galat_groq(balasan):
+      return
+    if obrolan and terlalu_mirip(balasan, [t for _, t in obrolan[-3:]]):
+      break
+    obrolan.append((nama, balasan))
+    await asyncio.sleep(random.uniform(4, 8))
+    await catat_kantor(nama, balasan, "rutin")
+    await kirim_ke_kanal(kanal_id, f"**@{nama}**: {balasan}")
+  if len(obrolan) < 2:
+    return
+  ringkas = "\n".join(f"{n}: {t}" for n, t in obrolan)
+  for peran, nama in pemeran:
+    catatan_baru = bersihkan_gaya(
+        await asyncio.to_thread(
+            panggil_agen_groq,
+            peran,
+            f"Obrolan tadi:\n{ringkas}\n\nTulis satu kalimat catatan belajar"
+            " pribadimu dari obrolan ini, yang berguna untuk pekerjaan"
+            " berikutnya.",
+            "Tulis satu kalimat saja, tanpa emoji.",
+            30,
+            500,
+            0.7,
+        )
+    )
+    if not galat_groq(catatan_baru):
+      catat_belajar(nama, catatan_baru)
+  if "ide fitur" in topik.lower() or random.random() < 0.25:
+    ide = bersihkan_gaya(
+        await asyncio.to_thread(
+            panggil_agen_groq,
+            "Software House Manager",
+            f"Obrolan tadi:\n{ringkas}\n\nRangkum satu usulan fitur konkret"
+            " untuk bot Discord dalam satu kalimat.",
+            "Tulis satu kalimat saja, tanpa emoji.",
+            35,
+            500,
+            0.7,
+        )
+    )
+    if not galat_groq(ide):
+      usulan = data.setdefault("usulan", [])
+      usulan.append({"waktu": sekarang_wib().isoformat(), "teks": ide})
+      del usulan[:-10]
+      await catat_kantor("manager", f"Usulan fitur: {ide}", "usulan")
+      await kirim_ke_kanal(kanal_id, f"**@manager**: Usulan fitur: {ide}")
+  simpan_data()
+
+
+async def loop_rutinitas():
+  await client.wait_until_ready()
+  menit = int(os.getenv("KANTOR_RUTIN_MENIT", "60"))
+  if menit <= 0:
+    return
+  await asyncio.sleep(120)
+  while not client.is_closed():
+    try:
+      await satu_siklus_rutin()
+    except Exception as e:
+      print(f"Rutinitas kantor error: {bersihkan_error(e)}")
+    await asyncio.sleep(menit * 60 + random.uniform(0, 300))
+
+
+@tree.command(
+    name="jadwal", description="Lihat pekerjaan terjadwal (khusus pemilik)"
+)
+async def jadwal(interaction: discord.Interaction):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  daftar = data.get("jadwal", [])
+  if not daftar:
+    await interaction.response.send_message(
+        "Belum ada pekerjaan terjadwal.", ephemeral=True
+    )
+    return
+  baris = []
+  for j in daftar:
+    waktu = datetime.fromisoformat(j["waktu"]).astimezone(WIB)
+    baris.append(f"Nomor {j['id']}: {waktu:%d/%m %H:%M} WIB, email, {j['subjek']}")
+  await interaction.response.send_message("\n".join(baris)[:1900], ephemeral=True)
+
+
+@tree.command(
+    name="batalkanjadwal", description="Batalkan pekerjaan terjadwal (khusus pemilik)"
+)
+@app_commands.describe(nomor="Nomor jadwal dari perintah /jadwal")
+async def batalkanjadwal(interaction: discord.Interaction, nomor: int):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  daftar = data.get("jadwal", [])
+  sisa = [j for j in daftar if j["id"] != nomor]
+  if len(sisa) == len(daftar):
+    await interaction.response.send_message(
+        "Nomor jadwal itu tidak ditemukan.", ephemeral=True
+    )
+    return
+  data["jadwal"] = sisa
+  simpan_data()
+  await interaction.response.send_message(
+      f"Jadwal nomor {nomor} dibatalkan.", ephemeral=True
+  )
+
+
+@tree.command(
+    name="usulan", description="Lihat usulan fitur dari tim (khusus pemilik)"
+)
+async def usulan(interaction: discord.Interaction):
+  if interaction.user.id != PEMILIK_ID:
+    await interaction.response.send_message(
+        "Perintah ini khusus pemilik bot.", ephemeral=True
+    )
+    return
+  daftar = data.get("usulan", [])
+  if not daftar:
+    await interaction.response.send_message(
+        "Belum ada usulan dari tim.", ephemeral=True
+    )
+    return
+  baris = [
+      f"{i}. {u['teks']}" for i, u in enumerate(reversed(daftar[-10:]), start=1)
+  ]
+  await interaction.response.send_message(
+      "Usulan terbaru (paling baru di atas). Kalau cocok, jalankan"
+      " /tambahfitur dengan usulan itu.\n" + "\n".join(baris)[:1700],
+      ephemeral=True,
+  )
+
+
 PERAN_KANTOR = ["Marketing Manager", "Software House Manager"]
 BATAS_EMBED = 3800
 
@@ -2886,28 +3201,16 @@ async def kantor(
   tanpa_ping = discord.AllowedMentions.none()
   bahan_nyata = await asyncio.to_thread(kumpulkan_data_nyata, tugas)
   await catat_kantor("sistem", f"Tugas dari bos: {tugas}", "tugas")
+  riwayat_tugas = data.setdefault("riwayat_tugas", [])
+  riwayat_tugas.append(tugas[:200])
+  del riwayat_tugas[:-10]
+  simpan_data()
   nama_agen = {
       "Marketing Manager": "pranowo",
       "Software House Manager": "manager",
   }
-  gaya_chat = (
-      "Balas seperti chat singkat antar rekan kerja: santai tapi"
-      " profesional, dalam Bahasa Indonesia saja (kata Inggris hanya yang"
-      " lazim sekali seperti deadline atau meeting). Cukup 1 sampai 2"
-      " kalimat, tanpa poin, judul, atau tabel. Jangan menyalin atau"
-      " mengulang kalimat rekanmu maupun kalimat user. Jangan memakai wkwk"
-      " atau emoji. Setiap pesan wajib menambah satu hal baru."
-  )
-  watak = {
-      "pranowo": (
-          "Kamu Pranowo, Marketing Manager. Sudut pandangmu: audiens, pesan,"
-          " waktu, dan hasil bagi bisnis."
-      ),
-      "manager": (
-          "Kamu Manager Software House. Sudut pandangmu: langkah teknis,"
-          " risiko, dan perkiraan waktu."
-      ),
-  }
+  gaya_chat = GAYA_CHAT
+  watak = WATAK_AGEN
 
   def mengetik():
     if interaction.channel is None:
@@ -2941,8 +3244,18 @@ async def kantor(
             " berpura-pura sudah melihatnya, dan jangan minta user mengirim"
             " berkas, cukup bahas rencananya."
         )
+      catatan = data.get("catatan_agen", {}).get(nama, [])[-3:]
+      info_catatan = (
+          "Catatan pribadimu dari pengalaman sebelumnya:\n- "
+          + "\n- ".join(catatan)
+          + "\n\n"
+          if catatan
+          else ""
+      )
       tugas_agen = (
-          f"Topik dari user: {tugas}\n\n{info_data}\n\nObrolan sejauh ini:\n"
+          f"Topik dari user: {tugas}\n\nWaktu sekarang:"
+          f" {sekarang_wib():%H:%M} WIB.\n\n{info_data}\n\n{info_catatan}"
+          f"Obrolan sejauh ini:\n"
           f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
           f" Fokus giliran ini: {fokus} Tulis satu pesan chat singkat."
       )
@@ -2993,7 +3306,9 @@ async def kantor(
             "Tulis keputusan akhir tim dalam 1 sampai 2 kalimat sederhana."
             " Tulis sebagai rencana yang akan dikerjakan, jangan klaim ada"
             " yang sudah terkirim atau selesai, karena pelaksanaannya"
-            " dilakukan sesudah ini oleh rekan lain."
+            " dilakukan sesudah ini oleh rekan lain. Kalau perintah menyebut"
+            " jam pengiriman, tulis bahwa pengiriman akan dijadwalkan pada"
+            " jam itu."
         ),
         (
             "Setelah itu, di baris baru, tulis AKSI: diikuti nama aksi dari"
@@ -3042,6 +3357,24 @@ async def kantor(
       if nama == "buat_repo_github":
         return await asyncio.to_thread(aksi_buat_repo_github, tugas, bahan)
       subjek, isi = await asyncio.to_thread(tulis_email_groq, tugas, bahan)
+      waktu_kirim = deteksi_waktu(tugas, sekarang_wib())
+      if waktu_kirim is not None:
+        if waktu_kirim <= sekarang_wib():
+          return (
+              "Jam pengiriman yang diminta sudah lewat, jadi email belum"
+              " dijadwalkan. Sebutkan jam yang masih akan datang."
+          )
+        nomor_jadwal = tambah_jadwal({
+            "jenis": "email",
+            "waktu": waktu_kirim.astimezone(timezone.utc).isoformat(),
+            "subjek": subjek,
+            "isi": isi,
+            "channel_id": interaction.channel_id,
+        })
+        return (
+            f"Siap, email dijadwalkan terkirim {waktu_kirim:%d/%m %H:%M} WIB"
+            f" (jadwal nomor {nomor_jadwal}). Subjeknya: {subjek}"
+        )
       hasil = await alat_kirim_email_pemilik(konteks, subjek, isi)
       if hasil.get("berhasil"):
         return f"Beres, email sudah terkirim ke email bos. Subjeknya: {subjek}"
