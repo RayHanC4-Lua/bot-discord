@@ -29,13 +29,15 @@ h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;l
 .status.putus .titik{background:#d1495b}
 .tugas{background:var(--dinding);color:#fff;border-radius:14px;padding:11px 14px;font-size:.92rem;margin-bottom:12px}
 .tugas b{font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--sorot);margin-right:6px}
-.denah{position:relative;margin-top:64px;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
+.denah{position:relative;margin-top:64px;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e" "b b";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
 .ruang{position:relative;min-height:176px;overflow:hidden;border-radius:8px}
 .ruang>.nama{position:absolute;left:8px;top:6px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.82rem;color:var(--dinding);background:rgba(255,255,255,.75);padding:0 8px;border-radius:8px;z-index:3}
 .m{grid-area:m;background:repeating-linear-gradient(90deg,var(--kayu) 0 22px,#dcbe90 22px 24px)}
 .s{grid-area:s;background:repeating-linear-gradient(0deg,var(--karpet) 0 14px,#c2d9cb 14px 16px)}
 .t{grid-area:t;background:var(--batu);min-height:210px}
 .e{grid-area:e;background:repeating-linear-gradient(90deg,#d8dde6 0 30px,#cfd5e0 30px 32px);min-height:150px}
+.b{grid-area:b;background:repeating-linear-gradient(90deg,#e6dcc8 0 26px,#ddd1b8 26px 28px);min-height:150px}
+[hidden]{display:none!important}
 .meja{position:absolute;background:var(--kayu-gelap);border-radius:6px;box-shadow:0 3px 0 rgba(0,0,0,.18)}
 .layar{position:absolute;width:30px;height:20px;background:#27344f;border:3px solid #4a5877;border-radius:3px}
 .tanaman{position:absolute;width:26px;height:26px;border-radius:50%;background:#4f9d69;box-shadow:inset -5px -5px 0 rgba(0,0,0,.14),0 5px 0 #8a5a3b}
@@ -76,7 +78,7 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
 .pesan time{float:right;font-size:.72rem;color:#7a869b}
 .kosong{padding:14px 0;color:#5b6780}
 @media(min-width:720px){
-  .denah{grid-template-columns:1fr 1.15fr 1fr;grid-template-areas:"m t s" "e e e"}
+  .denah{grid-template-columns:1fr 1.15fr 1fr;grid-template-areas:"m t s" "e e e" "b b b"}
   .t{min-height:240px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:0s!important}}
@@ -87,7 +89,7 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
   <h1>Kantor RyHanC</h1>
   <div class="status" id="status"><span class="titik"></span><span id="statusTeks">Menyambung</span></div>
 </div>
-<div class="tugas" id="tugas"><b>Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
+<div class="tugas" id="tugas"><b id="tugasLabel">Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
 
 <div class="denah" id="denah">
   <section class="ruang m">
@@ -122,6 +124,11 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
     <div class="rak" style="right:12%"><i></i><i></i><i></i></div>
   </section>
 
+  <section class="ruang b" id="ruangB" hidden>
+    <span class="nama">Ruang Tim Baru</span>
+    <div class="meja" style="left:8%;top:64%;width:84%;height:20px"></div>
+  </section>
+
   <div class="agen" id="a-pranowo"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Pranowo</div></div>
   <div class="agen" id="a-manager"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Manager</div></div>
   <div class="agen" id="a-chatai"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Chat AI</div></div>
@@ -149,8 +156,11 @@ const ruangEl = {
   m: document.querySelector(".ruang.m"),
   s: document.querySelector(".ruang.s"),
   t: document.querySelector(".ruang.t"),
-  e: document.querySelector(".ruang.e")
+  e: document.querySelector(".ruang.e"),
+  b: document.getElementById("ruangB")
 };
+const KURSI_EKSTRA = [[0.22, 0.8], [0.78, 0.8], [0.08, 0.52], [0.92, 0.52], [0.5, 0.3]];
+const urutanB = [];
 const terbaru = {};
 const keadaan = {};
 let idTerakhir = 0;
@@ -169,7 +179,34 @@ function titik(ruang, px, py) {
     y: a.top - d.top - denah.clientTop + a.height * py
   };
 }
-function titikRumah(k) { return titik(AGEN[k].ruang, AGEN[k].rumah[0], AGEN[k].rumah[1]); }
+function titikRumah(k) {
+  const a = AGEN[k];
+  if (a.ruang === "b") return titik("b", (urutanB.indexOf(k) + 1) / (urutanB.length + 1), 0.3);
+  return titik(a.ruang, a.rumah[0], a.rumah[1]);
+}
+
+function pastikanAgen(k) {
+  if (AGEN[k]) return;
+  const warna = "hsl(" + (Array.from(k).reduce(function (a, c) { return a + c.charCodeAt(0) * 37; }, 0) % 360) + " 55% 48%)";
+  AGEN[k] = {
+    nama: k.charAt(0).toUpperCase() + k.slice(1),
+    warna: warna,
+    ruang: "b",
+    rumah: [0.5, 0.3],
+    kursi: KURSI_EKSTRA[urutanB.length % KURSI_EKSTRA.length]
+  };
+  urutanB.push(k);
+  const el = document.createElement("div");
+  el.className = "agen";
+  el.id = "a-" + k;
+  el.innerHTML = '<div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat"></div>';
+  el.querySelector(".plat").textContent = AGEN[k].nama;
+  el.querySelector(".badan").style.setProperty("--w", warna);
+  denah.appendChild(el);
+  keadaan[k] = { el: el, lokasi: "rumah", x: 0, y: 0, pulang: null, henti: null, sibuk: false };
+  ruangEl.b.hidden = false;
+  susun();
+}
 function titikKursi(k) { return titik("t", AGEN[k].kursi[0], AGEN[k].kursi[1]); }
 
 function taruh(k, x, y, detik) {
@@ -238,11 +275,18 @@ function jam(iso) {
 
 function terapkan(baris, awal) {
   if (baris.agen === "rian") baris.agen = "pranowo";
+  if (!AGEN[baris.agen] && baris.agen !== "sistem" && baris.agen !== "keputusan" && /^[a-z]{3,12}$/.test(baris.agen)) {
+    pastikanAgen(baris.agen);
+  }
   idTerakhir = Math.max(idTerakhir, baris.id);
   const waktu = Date.parse(baris.dibuat);
   const segar = !awal && Date.now() - waktu < BATAS_GELEMBUNG;
   if (baris.jenis === "tugas") {
+    document.getElementById("tugasLabel").textContent = "Tugas";
     document.getElementById("tugasTeks").textContent = baris.teks.replace(/^Tugas dari bos:\s*/, "");
+  } else if (baris.jenis === "rutin" && baris.agen === "sistem") {
+    document.getElementById("tugasLabel").textContent = "Santai";
+    document.getElementById("tugasTeks").textContent = baris.teks.replace(/^Obrolan santai di kantor tentang:\s*/, "");
   } else if (baris.jenis === "keputusan") {
     document.getElementById("papanTeks").textContent = baris.teks;
   }
