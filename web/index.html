@@ -29,7 +29,7 @@ h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;l
 .status.putus .titik{background:#d1495b}
 .tugas{background:var(--dinding);color:#fff;border-radius:14px;padding:11px 14px;font-size:.92rem;margin-bottom:12px}
 .tugas b{font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--sorot);margin-right:6px}
-.denah{position:relative;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
+.denah{position:relative;margin-top:64px;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
 .ruang{position:relative;min-height:176px;overflow:hidden;border-radius:8px}
 .ruang>.nama{position:absolute;left:8px;top:6px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.82rem;color:var(--dinding);background:rgba(255,255,255,.75);padding:0 8px;border-radius:8px;z-index:3}
 .m{grid-area:m;background:repeating-linear-gradient(90deg,var(--kayu) 0 22px,#dcbe90 22px 24px)}
@@ -43,7 +43,7 @@ h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;l
 .kursi{position:absolute;width:20px;height:20px;border-radius:50%;background:#7184a8}
 .papan{position:absolute;right:10px;top:8px;width:46%;max-width:300px;min-height:56px;background:#fff;border:4px solid var(--dinding);border-radius:8px;padding:5px 8px;font-size:.74rem;line-height:1.3;z-index:3}
 .papan b{display:block;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--dinding)}
-.papan span{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.papan span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .rak{position:absolute;bottom:14px;width:34px;height:66px;background:#35435f;border-radius:5px}
 .rak i{display:block;height:5px;margin:7px 6px 0;background:#2f9e6f;border-radius:3px;animation:kedip 2.4s infinite}
 .rak i:nth-child(2){animation-delay:.8s;background:var(--sorot)}
@@ -122,7 +122,7 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
     <div class="rak" style="right:12%"><i></i><i></i><i></i></div>
   </section>
 
-  <div class="agen" id="a-rian"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Rian</div></div>
+  <div class="agen" id="a-pranowo"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Pranowo</div></div>
   <div class="agen" id="a-manager"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Manager</div></div>
   <div class="agen" id="a-chatai"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Chat AI</div></div>
 </div>
@@ -135,9 +135,9 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
 <script src="konfig.js"></script>
 <script>
 const AGEN = {
-  rian: { nama: "Rian", warna: "#e8a317", ruang: "m", rumah: [0.5, 0.22], kursi: [0.27, 0.34] },
-  manager: { nama: "Manager", warna: "#2f9e6f", ruang: "s", rumah: [0.5, 0.22], kursi: [0.69, 0.34] },
-  chatai: { nama: "Chat AI", warna: "#3b82c4", ruang: "e", rumah: [0.5, 0.34], kursi: [0.48, 0.58] }
+  pranowo: { nama: "Pranowo", warna: "#e8a317", ruang: "m", rumah: [0.5, 0.22], kursi: [0.25, 0.52] },
+  manager: { nama: "Manager", warna: "#2f9e6f", ruang: "s", rumah: [0.5, 0.22], kursi: [0.75, 0.52] },
+  chatai: { nama: "Chat AI", warna: "#3b82c4", ruang: "e", rumah: [0.5, 0.34], kursi: [0.5, 0.74] }
 };
 const BATAS_GELEMBUNG = 25000;
 const BATAS_BICARA = 6000;
@@ -237,6 +237,7 @@ function jam(iso) {
 }
 
 function terapkan(baris, awal) {
+  if (baris.agen === "rian") baris.agen = "pranowo";
   idTerakhir = Math.max(idTerakhir, baris.id);
   const waktu = Date.parse(baris.dibuat);
   const segar = !awal && Date.now() - waktu < BATAS_GELEMBUNG;
@@ -272,13 +273,17 @@ function terapkan(baris, awal) {
 function tampil() {
   const sekarang = Date.now();
   const d = denah.getBoundingClientRect();
+  let terkini = null;
+  for (const k in AGEN) {
+    if (terbaru[k] && (terkini === null || terbaru[k].waktu >= terbaru[terkini].waktu)) terkini = k;
+  }
   for (const k in AGEN) {
     const el = keadaan[k].el;
     const data = terbaru[k];
     const umur = data ? sekarang - data.waktu : Infinity;
     const gel = el.querySelector(".gelembung");
-    if (data && umur < BATAS_GELEMBUNG) {
-      let teks = data.teks;
+    if (data && k === terkini && umur < BATAS_GELEMBUNG) {
+      let teks = data.teks.length > 170 ? data.teks.slice(0, 167) + "..." : data.teks;
       if (data.mulai) {
         const n = Math.max(1, Math.floor((sekarang - data.mulai) / 28));
         if (n < teks.length) teks = teks.slice(0, n);
