@@ -3504,8 +3504,11 @@ def tulis_email_groq(tugas, ringkasan):
       " Penerima email adalah pemilik bot sendiri."
   )
   tugas_email = (
-      f"Permintaan pemilik: {tugas}\n\nKeputusan tim: {ringkasan}\n\n"
-      "Tulis email sesuai permintaan itu."
+      f"Permintaan pemilik: {tugas}\n\nData nyata yang tersedia:"
+      f" {ringkasan or '(tidak ada data tambahan)'}\n\nTulis email sesuai"
+      " permintaan itu. Jangan menyatakan ada sesuatu yang sudah"
+      " diimplementasikan, dikerjakan, atau selesai, karena tidak ada data"
+      " bahwa itu terjadi."
   )
   subjek, isi = "", ""
   for _ in range(2):
@@ -3530,7 +3533,7 @@ def tulis_email_groq(tugas, ringkasan):
   isi = bersihkan_placeholder(isi)
   if not subjek or len(isi) < 15:
     subjek = "Pesan dari Kantor RyHanC"
-    isi = bersihkan_placeholder(ringkasan) or tugas
+    isi = tugas
   return subjek, bungkus_email(isi)
 
 
@@ -3729,7 +3732,7 @@ async def kantor(
         bahan += f"\n\nData nyata:\n{bahan_nyata}"
       if nama == "buat_repo_github":
         return await asyncio.to_thread(aksi_buat_repo_github, tugas, bahan)
-      subjek, isi = await asyncio.to_thread(tulis_email_groq, tugas, bahan)
+      subjek, isi = await asyncio.to_thread(tulis_email_groq, tugas, bahan_nyata)
       waktu_kirim = deteksi_waktu(tugas, sekarang_wib())
       if waktu_kirim is not None:
         if waktu_kirim <= sekarang_wib():
