@@ -3,6 +3,7 @@ import asyncio
 import base64
 import contextlib
 import difflib
+import hmac
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
@@ -612,7 +613,8 @@ def kirim_groq(payload, timeout=90):
       "Content-Type": "application/json",
   }
   payload = dict(payload)
-  payload.setdefault("reasoning_effort", "low")
+  if not payload.pop("tanpa_effort", False):
+    payload.setdefault("reasoning_effort", "low")
   terakhir = ""
   diperbesar = False
   percobaan = 0
@@ -1471,6 +1473,7 @@ async def on_ready():
     asyncio.create_task(loop_penjadwal())
     asyncio.create_task(loop_rutinitas())
     asyncio.create_task(loop_laporan())
+    asyncio.create_task(loop_perintah_web())
   for br in data.get("button_roles", []):
     client.add_view(
         DynamicRoleView(br["role_id"], br["label"]), message_id=br["message_id"]
@@ -3455,11 +3458,201 @@ def kumpulkan_data_nyata(tugas):
   return "\n".join(bagian)[:3500]
 
 
+AKSI_RISIKO = {"kirim_email_pemilik", "buat_repo_github", "bersihkan_sampah"}
+
+
+def riset_web(pertanyaan):
+  return kirim_groq(
+      {
+          "model": os.getenv("GROQ_MODEL_RISET", "groq/compound-mini"),
+          "messages": [
+              {
+                  "role": "system",
+                  "content": (
+                      "Cari informasi terbaru di internet lalu jawab dalam"
+                      " Bahasa Indonesia secara ringkas (maksimal 150 kata)"
+                      " dan sebut nama sumbernya. Jangan mengarang. Kalau tidak"
+                      " ketemu, katakan tidak ketemu. Tanpa emoji."
+                  ),
+              },
+              {"role": "user", "content": pertanyaan},
+          ],
+          "temperature": 0.3,
+          "max_completion_tokens": 1500,
+          "tanpa_effort": True,
+      },
+      timeout=120,
+  )
+
+
+class TombolSetuju(discord.ui.View):
+
+  def __init__(self):
+    super().__init__(timeout=300)
+    self.hasil = None
+    self.selesai = asyncio.Event()
+
+  async def interaction_check(self, interaction: discord.Interaction):
+    if interaction.user.id != PEMILIK_ID:
+      await interaction.response.send_message(
+          "Tombol ini khusus pemilik bot.", ephemeral=True
+      )
+      return False
+    return True
+
+  async def putuskan(self, interaction, nilai, teks):
+    self.hasil = nilai
+    for item in self.children:
+      item.disabled = True
+    await interaction.response.edit_message(content=teks, view=self)
+    self.selesai.set()
+    self.stop()
+
+  @discord.ui.button(label="Setuju", style=discord.ButtonStyle.success)
+  async def setuju(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    await self.putuskan(
+        interaction, True, "**@chatai**: Disetujui bos, aksi dijalankan."
+    )
+
+  @discord.ui.button(label="Tolak", style=discord.ButtonStyle.danger)
+  async def tolak(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    await self.putuskan(
+        interaction, False, "**@chatai**: Ditolak bos, aksi dibatalkan."
+    )
+
+  async def on_timeout(self):
+    self.selesai.set()
+
+
+async def minta_persetujuan(interaction, uraian):
+  tampilan = TombolSetuju()
+  await catat_kantor("chatai", f"Menunggu persetujuan bos: {uraian}", "approval")
+  pesan = await interaction.followup.send(
+      f"**@chatai**: Menunggu persetujuan bos: {uraian}"[:1900],
+      view=tampilan,
+      allowed_mentions=discord.AllowedMentions.none(),
+      wait=True,
+  )
+  await tampilan.selesai.wait()
+  if tampilan.hasil is None:
+    try:
+      await pesan.edit(
+          content="**@chatai**: Tidak ada jawaban dari bos, aksi dibatalkan.",
+          view=None,
+      )
+    except Exception:
+      pass
+  await catat_kantor(
+      "chatai",
+      "Disetujui bos" if tampilan.hasil else "Aksi tidak disetujui",
+      "persetujuan",
+  )
+  return bool(tampilan.hasil)
+
+
+class KirimanWeb:
+
+  def __init__(self, kanal):
+    self.kanal = kanal
+
+  async def send(self, *args, **kwargs):
+    kwargs.pop("wait", None)
+    kwargs.pop("ephemeral", None)
+    return await self.kanal.send(*args, **kwargs)
+
+
+class InteraksiWeb:
+
+  def __init__(self, kanal, pemilik):
+    self.channel = kanal
+    self.channel_id = kanal.id
+    self.guild = getattr(kanal, "guild", None)
+    self.user = pemilik
+    self.followup = KirimanWeb(kanal)
+
+
+def ambil_perintah_web():
+  alamat = os.getenv("SUPABASE_URL").rstrip("/")
+  kunci = os.getenv("SUPABASE_SERVICE_KEY")
+  res = requests.get(
+      f"{alamat}/rest/v1/kantor_perintah?status=eq.baru&order=id.asc&limit=1",
+      headers={"apikey": kunci, "Authorization": f"Bearer {kunci}"},
+      timeout=10,
+  )
+  if res.status_code != 200:
+    return None
+  daftar = res.json()
+  return daftar[0] if daftar else None
+
+
+def tandai_perintah(nomor, status):
+  alamat = os.getenv("SUPABASE_URL").rstrip("/")
+  kunci = os.getenv("SUPABASE_SERVICE_KEY")
+  requests.patch(
+      f"{alamat}/rest/v1/kantor_perintah?id=eq.{nomor}",
+      headers={
+          "apikey": kunci,
+          "Authorization": f"Bearer {kunci}",
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal",
+      },
+      json={"status": status},
+      timeout=10,
+  )
+
+
+async def jalankan_dari_web(teks):
+  pemilik = await client.fetch_user(PEMILIK_ID)
+  kanal_id = os.getenv("KANTOR_CHANNEL_ID")
+  kanal = client.get_channel(int(kanal_id)) if kanal_id else None
+  if kanal is None:
+    kanal = pemilik.dm_channel or await pemilik.create_dm()
+  await kanal.send(
+      "Control Room diaktifkan dari halaman web. Tim sedang berdiskusi."
+  )
+  await jalankan_kantor(InteraksiWeb(kanal, pemilik), teks, 2, True)
+
+
+async def loop_perintah_web():
+  await client.wait_until_ready()
+  kode = os.getenv("KANTOR_KODE")
+  if not (os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_KEY") and kode):
+    return
+  terakhir = 0.0
+  while not client.is_closed():
+    try:
+      baris = await asyncio.to_thread(ambil_perintah_web)
+      if baris:
+        dibuat = datetime.fromisoformat(baris["dibuat"].replace("Z", "+00:00"))
+        umur = (datetime.now(timezone.utc) - dibuat).total_seconds()
+        if not hmac.compare_digest(str(baris.get("kode", "")), kode):
+          status = "ditolak"
+        elif umur > 600:
+          status = "kedaluwarsa"
+        elif time.time() - terakhir < 30:
+          status = "terlalu_cepat"
+        else:
+          status = "diproses"
+        await asyncio.to_thread(tandai_perintah, baris["id"], status)
+        if status == "diproses":
+          terakhir = time.time()
+          await jalankan_dari_web(baris["teks"])
+          await asyncio.to_thread(tandai_perintah, baris["id"], "selesai")
+    except Exception as e:
+      print(f"Perintah web error: {bersihkan_error(e)}")
+    await asyncio.sleep(5)
+
+
 AKSI_KANTOR = {
     "bersihkan_sampah": "Hapus file unduhan dan file AI yang berumur lebih dari 1 jam",
     "segarkan_diri": "Muat ulang pengaturan, kosongkan riwayat chat, perbarui status bot",
     "kirim_email_pemilik": "Tulis dan kirim email ke alamat email pemilik bot",
     "buat_repo_github": "Susun proyek, buat repo GitHub privat di akun pemilik, lalu unggah filenya",
+    "riset_web": "Cari informasi terbaru di internet lalu rangkum hasilnya",
 }
 
 
@@ -3555,7 +3748,10 @@ async def kantor(
   await interaction.response.send_message(
       "Control Room diaktifkan. Tim sedang berdiskusi, mohon tunggu sebentar."
   )
+  await jalankan_kantor(interaction, tugas, ronde, eksekusi)
 
+
+async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
   transkrip = []
   tanpa_ping = discord.AllowedMentions.none()
   bahan_nyata = await asyncio.to_thread(kumpulkan_data_nyata, tugas)
@@ -3721,8 +3917,19 @@ async def kantor(
       "member": interaction.user,
   }
 
+  hasil_riset = []
+
   async def jalankan_aksi(nama):
     try:
+      if nama == "riset_web":
+        teks_riset = await asyncio.to_thread(riset_web, tugas)
+        if galat_groq(teks_riset):
+          return "Riset gagal karena layanan pencarian sedang bermasalah."
+        teks_riset = bersihkan_placeholder(
+            bersihkan_markdown(bersihkan_gaya(teks_riset))
+        )[:1500]
+        hasil_riset.append(teks_riset)
+        return "Hasil riset: " + teks_riset
       if nama == "bersihkan_sampah":
         return await asyncio.to_thread(aksi_bersihkan_sampah)
       if nama == "segarkan_diri":
@@ -3732,7 +3939,10 @@ async def kantor(
         bahan += f"\n\nData nyata:\n{bahan_nyata}"
       if nama == "buat_repo_github":
         return await asyncio.to_thread(aksi_buat_repo_github, tugas, bahan)
-      subjek, isi = await asyncio.to_thread(tulis_email_groq, tugas, bahan_nyata)
+      bahan_email = bahan_nyata
+      if hasil_riset:
+        bahan_email += "\n\nHasil riset:\n" + "\n".join(hasil_riset)
+      subjek, isi = await asyncio.to_thread(tulis_email_groq, tugas, bahan_email)
       waktu_kirim = deteksi_waktu(tugas, sekarang_wib())
       if waktu_kirim is not None:
         if waktu_kirim <= sekarang_wib():
@@ -3774,7 +3984,20 @@ async def kantor(
         allowed_mentions=tanpa_ping,
     )
     if terpilih:
+      terpilih.sort(key=lambda n: n != "riset_web")
       for nama in terpilih:
+        if nama in AKSI_RISIKO:
+          setuju = await minta_persetujuan(
+              interaction, f"{AKSI_KANTOR[nama]}. Permintaan: {tugas[:150]}"
+          )
+          if not setuju:
+            batal = "Aksi dibatalkan karena tidak disetujui."
+            await interaction.followup.send(
+                f"**@chatai**: {batal}", allowed_mentions=tanpa_ping
+            )
+            await catat_kantor("chatai", batal, "aksi")
+            continue
+        await catat_kantor("chatai", f"Mengerjakan: {AKSI_KANTOR[nama]}", "kerja")
         async with mengetik():
           hasil = await jalankan_aksi(nama)
           await jeda_berpikir(hasil)
