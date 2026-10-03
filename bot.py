@@ -2997,44 +2997,63 @@ async def buat_laporan():
       a
       for a in data.get("aktivitas", [])
       if (not sejak or a["waktu"] > sejak) and a["jenis"] != "laporan"
-  ][-30:]
-  baris = [f"[{a['jenis']}] {a['agen']}: {a['teks'][:200]}" for a in aktivitas]
-  catatan = []
-  for nama, daftar in data.get("catatan_agen", {}).items():
-    catatan += [f"{nama}: {c}" for c in daftar[-2:]]
-  jadwal_tunggu = len(data.get("jadwal", []))
-  if not baris:
-    return (
-        "Tidak ada aktivitas baru sejak laporan terakhir. Anggota tim saat"
-        f" ini: {anggota_tim()}. Jadwal yang menunggu: {jadwal_tunggu}."
+  ]
+  aksi = [a for a in aktivitas if a["jenis"] == "aksi"][-10:]
+  obrolan = [a for a in aktivitas if a["jenis"] in ("rutin", "obrolan")][-20:]
+  rekrut = [a for a in aktivitas if a["jenis"] == "rekrut"]
+  usulan = [a for a in aktivitas if a["jenis"] == "usulan"]
+  bagian = []
+  bagian.append(
+      "Tindakan nyata:\n"
+      + (
+          "\n".join(f"- {a['teks']}" for a in aksi)
+          if aksi
+          else "- Tidak ada tindakan nyata sejak laporan terakhir."
+      )
+  )
+  if obrolan:
+    ringkas = await asyncio.to_thread(
+        panggil_agen_groq,
+        "Chat AI, penulis laporan kantor",
+        "Obrolan tim:\n"
+        + "\n".join(f"{a['agen']}: {a['teks'][:200]}" for a in obrolan),
+        (
+            "Ringkas dalam 2 sampai 3 poin singkat apa yang dibicarakan. Tulis"
+            " sebagai pembahasan atau ide, bukan pekerjaan yang sudah selesai,"
+            " dan jangan menambah detail yang tidak ada di obrolan. Awali tiap"
+            " poin dengan tanda strip. Tanpa emoji."
+        ),
+        80,
+        1500,
+        0.3,
     )
-  tugas = (
-      "Aktivitas kantor sejak laporan terakhir:\n" + "\n".join(baris)
-      + "\n\nCatatan belajar terbaru:\n" + ("\n".join(catatan) or "(belum ada)")
-      + f"\n\nAnggota tim saat ini: {anggota_tim()}."
-      + f"\nJadwal yang menunggu: {jadwal_tunggu}."
-  )
-  hasil = await asyncio.to_thread(
-      panggil_agen_groq,
-      "Chat AI, penulis laporan harian kantor",
-      tugas,
-      (
-          "Tulis laporan untuk bos dalam Bahasa Indonesia. Gunakan hanya data"
-          " yang diberikan, jangan mengarang. Hanya entri berjenis aksi yang"
-          " boleh ditulis sudah dikerjakan. Entri lain adalah obrolan atau"
-          " ide, jadi tulis sebagai dibahas atau diusulkan, dan jangan"
-          " menambah detail teknis yang tidak ada di data. Susun dengan judul bagian"
-          " Ringkasan, Yang dikerjakan tim, Catatan belajar, lalu Usulan atau"
-          " anggota baru kalau ada. Tanpa sapaan, tanpa tanda tangan, tanpa"
-          " tabel, tanpa emoji."
-      ),
-      180,
-      2500,
-      0.4,
-  )
-  if galat_groq(hasil):
-    return "Laporan otomatis gagal dibuat karena layanan AI sedang bermasalah."
-  return bersihkan_placeholder(bersihkan_markdown(bersihkan_gaya(hasil)))
+    if galat_groq(ringkas):
+      ringkas = "- Ringkasan obrolan tidak tersedia karena layanan AI bermasalah."
+    bagian.append(
+        "Yang dibahas (ide, bukan pekerjaan selesai):\n"
+        + bersihkan_placeholder(bersihkan_markdown(bersihkan_gaya(ringkas)))
+    )
+  catatan = [
+      f"- {nama.capitalize()}: {daftar[-1]}"
+      for nama, daftar in data.get("catatan_agen", {}).items()
+      if daftar
+  ]
+  if catatan:
+    bagian.append("Catatan belajar terbaru:\n" + "\n".join(catatan))
+  if usulan:
+    bagian.append(
+        "Usulan fitur:\n"
+        + "\n".join(
+            "- " + a["teks"].replace("Usulan fitur: ", "", 1) for a in usulan
+        )
+    )
+  if rekrut:
+    bagian.append(
+        "Anggota baru:\n" + "\n".join(f"- {a['teks']}" for a in rekrut)
+    )
+  bagian.append(f"Anggota tim saat ini: {anggota_tim()}.")
+  bagian.append(f"Jadwal yang menunggu: {len(data.get('jadwal', []))}.")
+  return "\n\n".join(bagian)
 
 
 async def kirim_laporan(label):
