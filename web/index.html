@@ -6,82 +6,32 @@
 <title>Kantor RyHanC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{
-  --dinding:#1f2b46;
-  --karpet:#cde3d6;
-  --kayu:#e2c79c;
-  --kayu-gelap:#b98f5b;
-  --batu:#bccbe3;
-  --kertas:#e9eef3;
-  --sorot:#f2b705;
-  --teks:#16203a;
-}
 *{box-sizing:border-box;margin:0}
-html,body{background:var(--kertas);color:var(--teks);font-family:Nunito,system-ui,sans-serif;line-height:1.45}
-body{padding:14px 14px 28px;max-width:980px;margin:0 auto;overflow-x:hidden}
-h1{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.7rem;line-height:1.1}
-.atas{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
-.status{display:flex;align-items:center;gap:7px;font-size:.85rem;font-weight:600}
-.titik{width:10px;height:10px;border-radius:50%;background:#9aa5b8}
-.status.hidup .titik{background:#2f9e6f;box-shadow:0 0 0 4px rgba(47,158,111,.2)}
-.status.putus .titik{background:#d1495b}
-.tugas{background:var(--dinding);color:#fff;border-radius:14px;padding:11px 14px;font-size:.92rem;margin-bottom:12px}
-.tugas b{font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--sorot);margin-right:6px}
-.denah{position:relative;margin-top:64px;display:grid;gap:10px;grid-template-columns:1fr 1fr;grid-template-areas:"m s" "t t" "e e" "b b";border:8px solid var(--dinding);border-radius:18px;background:var(--dinding)}
-.ruang{position:relative;min-height:176px;overflow:hidden;border-radius:8px}
-.ruang>.nama{position:absolute;left:8px;top:6px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.82rem;color:var(--dinding);background:rgba(255,255,255,.75);padding:0 8px;border-radius:8px;z-index:3}
-.m{grid-area:m;background:repeating-linear-gradient(90deg,var(--kayu) 0 22px,#dcbe90 22px 24px)}
-.s{grid-area:s;background:repeating-linear-gradient(0deg,var(--karpet) 0 14px,#c2d9cb 14px 16px)}
-.t{grid-area:t;background:var(--batu);min-height:210px}
-.e{grid-area:e;background:repeating-linear-gradient(90deg,#d8dde6 0 30px,#cfd5e0 30px 32px);min-height:150px}
-.b{grid-area:b;background:repeating-linear-gradient(90deg,#e6dcc8 0 26px,#ddd1b8 26px 28px);min-height:150px}
-[hidden]{display:none!important}
-.meja{position:absolute;background:var(--kayu-gelap);border-radius:6px;box-shadow:0 3px 0 rgba(0,0,0,.18)}
-.layar{position:absolute;width:30px;height:20px;background:#27344f;border:3px solid #4a5877;border-radius:3px}
-.tanaman{position:absolute;width:26px;height:26px;border-radius:50%;background:#4f9d69;box-shadow:inset -5px -5px 0 rgba(0,0,0,.14),0 5px 0 #8a5a3b}
-.bundar{left:50%;top:64%;width:170px;height:80px;margin-left:-85px;margin-top:-40px;border-radius:50%}
-.kursi{position:absolute;width:20px;height:20px;border-radius:50%;background:#7184a8}
-.papan{position:absolute;right:10px;top:8px;width:46%;max-width:300px;min-height:56px;background:#fff;border:4px solid var(--dinding);border-radius:8px;padding:5px 8px;font-size:.74rem;line-height:1.3;z-index:3}
-.papan b{display:block;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;color:var(--dinding)}
+html,body{background:#2a1f3d;color:#f6ead2;font-family:"Pixelify Sans",system-ui,sans-serif;line-height:1.4}
+body{max-width:980px;margin:0 auto;padding:12px 12px 28px;overflow-x:hidden}
+.atas{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+h1{font-size:1.5rem;font-weight:600;color:#ffd9a0}
+.status{display:flex;align-items:center;gap:6px;font-size:.85rem}
+.titik{width:10px;height:10px;background:#8a8aa3}
+.status.hidup .titik{background:#6fe39a}
+.status.putus .titik{background:#ff6b6b}
+.kotak{background:#1c1838;border:3px solid #0d0a1f;box-shadow:inset 0 0 0 2px #4b3a6e;padding:8px 12px;margin-bottom:10px;font-size:.92rem}
+.kotak b{color:#ffb35c;margin-right:8px;font-weight:600}
+#adegan{position:relative;border:4px solid #0d0a1f;box-shadow:0 0 0 3px #4b3a6e;margin-top:6px}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.bub{position:absolute;display:none;max-width:46%;background:#fff3d6;color:#2a1f3d;border:3px solid #0d0a1f;box-shadow:3px 3px 0 #0d0a1f;padding:4px 7px;font-size:12px;line-height:1.3;z-index:5}
+.papan{position:absolute;background:#1c1838;color:#f6ead2;border:3px solid #0d0a1f;box-shadow:inset 0 0 0 2px #4b3a6e;padding:2px 5px;overflow:hidden;z-index:3;line-height:1.25}
+.papan b{display:block;color:#ffb35c;font-weight:600}
 .papan span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.rak{position:absolute;bottom:14px;width:34px;height:66px;background:#35435f;border-radius:5px}
-.rak i{display:block;height:5px;margin:7px 6px 0;background:#2f9e6f;border-radius:3px;animation:kedip 2.4s infinite}
-.rak i:nth-child(2){animation-delay:.8s;background:var(--sorot)}
-.rak i:nth-child(3){animation-delay:1.6s}
-@keyframes kedip{50%{opacity:.25}}
-.agen{position:absolute;left:0;top:0;width:84px;display:flex;flex-direction:column;align-items:center;z-index:5;transition-property:transform;transition-timing-function:ease-in-out;transition-duration:0s}
-.badan{position:relative;width:34px;height:40px;border-radius:14px 14px 8px 8px;background:var(--w)}
-.kepala{position:absolute;left:5px;top:-17px;width:24px;height:24px;border-radius:50%;background:#f1c9a5;box-shadow:inset 0 5px 0 var(--w)}
-.kepala:before,.kepala:after{content:"";position:absolute;top:13px;width:3px;height:3px;border-radius:50%;background:#3a2a1d;animation:kedip-mata 4.5s infinite}
-.kepala:before{left:6px}.kepala:after{right:6px}
-@keyframes kedip-mata{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
-.kaki{position:absolute;left:6px;right:6px;bottom:-6px;display:flex;justify-content:space-between}
-.kaki i{width:10px;height:8px;background:#2a3550;border-radius:4px}
-.plat{margin-top:7px;font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;font-size:.78rem;background:#fff;border-radius:8px;padding:0 8px;line-height:1.35}
-.agen.bicara .badan{animation:loncat .5s ease-in-out infinite alternate}
-.agen.jalan .badan{animation:loncat .26s ease-in-out infinite alternate}
-.agen.jalan .kaki i:nth-child(1){animation:langkah .26s ease-in-out infinite alternate}
-.agen.jalan .kaki i:nth-child(2){animation:langkah .26s ease-in-out infinite alternate-reverse}
-@keyframes loncat{to{transform:translateY(-5px)}}
-@keyframes langkah{to{transform:translateY(-4px)}}
-.gelembung{position:absolute;bottom:100%;margin-bottom:26px;left:50%;transform:translateX(-50%);width:max-content;max-width:min(220px,44vw);background:#fff;border:3px solid var(--sorot);border-radius:12px;padding:5px 9px;font-size:.76rem;line-height:1.3;display:none;z-index:6;box-shadow:0 3px 0 rgba(0,0,0,.12)}
-.gelembung:after{content:"";position:absolute;left:calc(50% - var(--geser,0px));top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--sorot)}
-.agen.tampil .gelembung{display:block}
-.catatan{margin-top:16px}
-h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;margin-bottom:6px}
-.log{background:#fff;border-radius:14px;padding:6px 12px;max-height:340px;overflow-y:auto}
-.pesan{padding:8px 0;border-bottom:1px solid #e3e8ef;font-size:.9rem}
+h2{font-size:1.1rem;font-weight:600;color:#ffd9a0;margin:14px 0 6px}
+.log{background:#1c1838;border:3px solid #0d0a1f;box-shadow:inset 0 0 0 2px #4b3a6e;padding:4px 12px;max-height:320px;overflow-y:auto}
+.pesan{padding:7px 0;border-bottom:2px solid #2e2750;font-size:.9rem}
 .pesan:last-child{border-bottom:0}
-.pesan b{font-family:"Baloo 2",system-ui,sans-serif;font-weight:500;margin-right:6px;color:var(--w,#16203a)}
-.pesan time{float:right;font-size:.72rem;color:#7a869b}
-.kosong{padding:14px 0;color:#5b6780}
-@media(min-width:720px){
-  .denah{grid-template-columns:1fr 1.15fr 1fr;grid-template-areas:"m t s" "e e e" "b b b"}
-  .t{min-height:240px}
-}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:0s!important}}
+.pesan b{font-weight:600;margin-right:6px;color:var(--w,#f6ead2)}
+.pesan time{float:right;font-size:.72rem;color:#9c92c4}
+.kosong{padding:12px 0;color:#9c92c4}
 </style>
 </head>
 <body>
@@ -89,179 +39,282 @@ h2{font-family:"Baloo 2",system-ui,sans-serif;font-weight:700;font-size:1.15rem;
   <h1>Kantor RyHanC</h1>
   <div class="status" id="status"><span class="titik"></span><span id="statusTeks">Menyambung</span></div>
 </div>
-<div class="tugas" id="tugas"><b id="tugasLabel">Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
-
-<div class="denah" id="denah">
-  <section class="ruang m">
-    <span class="nama">Ruang Marketing</span>
-    <div class="meja" style="left:18%;top:62%;width:64%;height:22px"></div>
-    <div class="layar" style="left:34%;top:46%"></div>
-    <div class="layar" style="left:56%;top:46%"></div>
-    <div class="tanaman" style="right:8px;bottom:10px"></div>
-  </section>
-
-  <section class="ruang t">
-    <span class="nama">Ruang Rapat</span>
-    <div class="papan"><b>Keputusan tim</b><span id="papanTeks">Belum ada keputusan.</span></div>
-    <div class="meja bundar"></div>
-    <div class="kursi" style="left:27%;top:62%"></div>
-    <div class="kursi" style="left:68%;top:62%"></div>
-    <div class="kursi" style="left:48%;top:86%"></div>
-    <div class="tanaman" style="left:10px;bottom:10px"></div>
-  </section>
-
-  <section class="ruang s">
-    <span class="nama">Software House</span>
-    <div class="meja" style="left:14%;top:62%;width:70%;height:22px"></div>
-    <div class="layar" style="left:30%;top:46%"></div>
-    <div class="layar" style="left:56%;top:46%"></div>
-  </section>
-
-  <section class="ruang e">
-    <span class="nama">Ruang Eksekutor</span>
-    <div class="rak" style="left:12%"><i></i><i></i><i></i></div>
-    <div class="rak" style="left:calc(12% + 42px)"><i></i><i></i><i></i></div>
-    <div class="rak" style="right:12%"><i></i><i></i><i></i></div>
-  </section>
-
-  <section class="ruang b" id="ruangB" hidden>
-    <span class="nama">Ruang Tim Baru</span>
-    <div class="meja" style="left:8%;top:64%;width:84%;height:20px"></div>
-  </section>
-
-  <div class="agen" id="a-pranowo"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Pranowo</div></div>
-  <div class="agen" id="a-manager"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Manager</div></div>
-  <div class="agen" id="a-chatai"><div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat">Chat AI</div></div>
+<div class="kotak"><b id="tugasLabel">Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
+<div id="adegan">
+  <canvas id="kanvas" width="256" height="142"></canvas>
+  <div class="papan" id="papan"><b>Keputusan tim</b><span id="papanTeks">Belum ada keputusan.</span></div>
 </div>
-
-<div class="catatan">
-  <h2>Obrolan terbaru</h2>
-  <div class="log" id="log" aria-live="polite"><div class="kosong" id="kosong">Menunggu obrolan pertama dari bot.</div></div>
-</div>
+<h2>Obrolan terbaru</h2>
+<div class="log" id="log" aria-live="polite"><div class="kosong" id="kosong">Menunggu obrolan pertama dari bot.</div></div>
 
 <script src="konfig.js"></script>
 <script>
+const LEBAR = 256;
+const RUANG = {
+  m: { x: 0, y: 0, w: 84, h: 92 },
+  t: { x: 84, y: 0, w: 88, h: 92 },
+  s: { x: 172, y: 0, w: 84, h: 92 },
+  e: { x: 0, y: 92, w: 256, h: 50 },
+  b: { x: 0, y: 142, w: 256, h: 50 }
+};
+const RUMAH = { m: [42, 76], s: [214, 76], e: [128, 128] };
+const KURSI = [[100, 70], [156, 70], [128, 86], [96, 56], [160, 56], [110, 88], [146, 88]];
+const RAMBUT = ["#4a2c1a", "#1b1b2a", "#8a8aa3", "#7a3b1d", "#2b2b55", "#a8742a"];
 const AGEN = {
-  pranowo: { nama: "Pranowo", warna: "#e8a317", ruang: "m", rumah: [0.5, 0.22], kursi: [0.25, 0.52] },
-  manager: { nama: "Manager", warna: "#2f9e6f", ruang: "s", rumah: [0.5, 0.22], kursi: [0.75, 0.52] },
-  chatai: { nama: "Chat AI", warna: "#3b82c4", ruang: "e", rumah: [0.5, 0.34], kursi: [0.5, 0.74] }
+  pranowo: { nama: "Pranowo", warna: "#e8a317", ruang: "m", kursi: 0, rambut: RAMBUT[0] },
+  manager: { nama: "Manager", warna: "#2f9e6f", ruang: "s", kursi: 1, rambut: RAMBUT[1] },
+  chatai: { nama: "Chat AI", warna: "#3b82c4", ruang: "e", kursi: 2, rambut: RAMBUT[2] }
 };
 const BATAS_GELEMBUNG = 25000;
 const BATAS_BICARA = 6000;
 const LAMA_DI_RAPAT = 15000;
-const KECEPATAN = 150;
-const kurangiGerak = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const denah = document.getElementById("denah");
-const ruangEl = {
-  m: document.querySelector(".ruang.m"),
-  s: document.querySelector(".ruang.s"),
-  t: document.querySelector(".ruang.t"),
-  e: document.querySelector(".ruang.e"),
-  b: document.getElementById("ruangB")
-};
-const KURSI_EKSTRA = [[0.22, 0.8], [0.78, 0.8], [0.08, 0.52], [0.92, 0.52], [0.5, 0.3]];
+const KECEPATAN = 46;
+const adegan = document.getElementById("adegan");
+const kanvas = document.getElementById("kanvas");
+const c = kanvas.getContext("2d");
+const papan = document.getElementById("papan");
 const urutanB = [];
+const ag = {};
 const terbaru = {};
-const keadaan = {};
 let idTerakhir = 0;
 
-for (const k in AGEN) {
-  const el = document.getElementById("a-" + k);
-  el.querySelector(".badan").style.setProperty("--w", AGEN[k].warna);
-  keadaan[k] = { el: el, lokasi: "rumah", x: 0, y: 0, pulang: null, henti: null, sibuk: false };
+function r(x, y, w, h, warna) {
+  c.fillStyle = warna;
+  c.fillRect(Math.round(x), Math.round(y), w, h);
 }
 
-function titik(ruang, px, py) {
-  const d = denah.getBoundingClientRect();
-  const a = ruangEl[ruang].getBoundingClientRect();
-  return {
-    x: a.left - d.left - denah.clientLeft + a.width * px - 42,
-    y: a.top - d.top - denah.clientTop + a.height * py
-  };
-}
-function titikRumah(k) {
+function tinggiAdegan() { return urutanB.length ? 192 : 142; }
+
+function rumah(k) {
   const a = AGEN[k];
-  if (a.ruang === "b") return titik("b", (urutanB.indexOf(k) + 1) / (urutanB.length + 1), 0.3);
-  return titik(a.ruang, a.rumah[0], a.rumah[1]);
+  if (a.ruang === "b") {
+    const i = urutanB.indexOf(k);
+    return [((i + 1) * LEBAR) / (urutanB.length + 1), RUANG.b.y + 36];
+  }
+  return RUMAH[a.ruang];
 }
+
+function kursi(k) { return KURSI[AGEN[k].kursi % KURSI.length]; }
+
+function buatAgen(k) {
+  const el = document.createElement("div");
+  el.className = "bub";
+  adegan.appendChild(el);
+  const h = rumah(k);
+  ag[k] = { x: h[0], y: h[1], lokasi: "rumah", pulang: null, sibuk: false, dx: 0, dy: 0, jalan: false, bicara: false, bub: el };
+}
+for (const k in AGEN) buatAgen(k);
 
 function pastikanAgen(k) {
   if (AGEN[k]) return;
-  const warna = "hsl(" + (Array.from(k).reduce(function (a, c) { return a + c.charCodeAt(0) * 37; }, 0) % 360) + " 55% 48%)";
+  const n = urutanB.length;
   AGEN[k] = {
     nama: k.charAt(0).toUpperCase() + k.slice(1),
-    warna: warna,
+    warna: "hsl(" + (Array.from(k).reduce(function (a, ch) { return a + ch.charCodeAt(0) * 37; }, 0) % 360) + " 55% 52%)",
     ruang: "b",
-    rumah: [0.5, 0.3],
-    kursi: KURSI_EKSTRA[urutanB.length % KURSI_EKSTRA.length]
+    kursi: 3 + (n % 4),
+    rambut: RAMBUT[(n + 3) % RAMBUT.length]
   };
   urutanB.push(k);
-  const el = document.createElement("div");
-  el.className = "agen";
-  el.id = "a-" + k;
-  el.innerHTML = '<div class="gelembung"></div><div class="badan"><div class="kepala"></div><div class="kaki"><i></i><i></i></div></div><div class="plat"></div>';
-  el.querySelector(".plat").textContent = AGEN[k].nama;
-  el.querySelector(".badan").style.setProperty("--w", warna);
-  denah.appendChild(el);
-  keadaan[k] = { el: el, lokasi: "rumah", x: 0, y: 0, pulang: null, henti: null, sibuk: false };
-  ruangEl.b.hidden = false;
-  susun();
-}
-function titikKursi(k) { return titik("t", AGEN[k].kursi[0], AGEN[k].kursi[1]); }
-
-function taruh(k, x, y, detik) {
-  const s = keadaan[k];
-  s.el.style.transitionDuration = detik + "s";
-  s.el.style.transform = "translate(" + x + "px," + y + "px)";
-  s.x = x;
-  s.y = y;
+  buatAgen(k);
 }
 
-function jalanKe(k, x, y) {
-  const s = keadaan[k];
-  const jarak = Math.hypot(x - s.x, y - s.y);
-  const detik = kurangiGerak ? 0 : Math.min(3.2, Math.max(0.6, jarak / KECEPATAN));
-  taruh(k, x, y, detik);
-  if (detik > 0 && jarak > 2) {
-    s.el.classList.add("jalan");
-    clearTimeout(s.henti);
-    s.henti = setTimeout(function () { s.el.classList.remove("jalan"); }, detik * 1000 + 60);
+function jendela(x, y) {
+  r(x, y, 28, 18, "#3b2a44");
+  r(x + 2, y + 2, 24, 5, "#f7d08a");
+  r(x + 2, y + 7, 24, 4, "#f2a65a");
+  r(x + 2, y + 11, 24, 2, "#e8805a");
+  r(x + 11, y + 8, 6, 3, "#fff1b8");
+  r(x + 2, y + 13, 24, 3, "#4b7aa6");
+  r(x + 13, y + 2, 2, 14, "#3b2a44");
+}
+
+function layar(x, y, t) {
+  r(x, y, 16, 11, "#0d0a1f");
+  r(x + 1, y + 1, 14, 9, "#1f3a5f");
+  const w = ["#ffb35c", "#6fe39a", "#ff7eb6", "#9ad1ff"];
+  for (let i = 0; i < 4; i++) r(x + 2, y + 2 + i * 2, 3 + ((i * 5 + Math.floor(t / 500)) % 9), 1, w[i]);
+  r(x + 6, y + 11, 4, 2, "#0d0a1f");
+}
+
+function meja(x, y, w) {
+  r(x, y, w, 5, "#c68a56");
+  r(x, y, w, 1, "#e0a874");
+  r(x, y + 5, w, 5, "#8a5a3b");
+  r(x + 2, y + 10, 3, 5, "#5a3a2e");
+  r(x + w - 5, y + 10, 3, 5, "#5a3a2e");
+}
+
+function tanaman(x, y) {
+  r(x, y + 6, 7, 5, "#8a5a3b");
+  r(x + 1, y, 5, 6, "#4f9d69");
+  r(x - 1, y + 2, 3, 3, "#6dbb82");
+  r(x + 5, y + 2, 3, 3, "#6dbb82");
+}
+
+function rak(x, y, t) {
+  r(x, y, 12, 24, "#2b3350");
+  r(x, y, 12, 1, "#4b5a82");
+  for (let i = 0; i < 4; i++) {
+    r(x + 2, y + 3 + i * 5, 2, 2, (Math.floor(t / 400) + i) % 3 ? "#6fe39a" : "#3b5a49");
+    r(x + 5, y + 3 + i * 5, 5, 2, "#3a4570");
   }
 }
 
-function pergi(k, tujuan) {
-  keadaan[k].lokasi = tujuan;
-  const t = tujuan === "rapat" ? titikKursi(k) : titikRumah(k);
-  jalanKe(k, t.x, t.y);
+function kursiMakan(x, y) {
+  r(x - 3, y - 3, 6, 3, "#7184b0");
+  r(x - 3, y, 6, 5, "#5b6b96");
 }
 
-function susun() {
+function label(x, y, teks) {
+  c.font = "8px 'Pixelify Sans'";
+  c.textBaseline = "top";
+  const w = Math.ceil(c.measureText(teks).width);
+  r(x, y, w + 5, 10, "#fff3d6");
+  c.fillStyle = "#2a1f3d";
+  c.fillText(teks, x + 2.5, y + 1);
+}
+
+function orang(k, t) {
+  const a = AGEN[k], s = ag[k];
+  const langkah = Math.floor(t / 170) % 2;
+  const x = Math.round(s.x);
+  const naik = (s.jalan || s.bicara) && langkah ? 1 : 0;
+  const y = Math.round(s.y);
+  r(x - 5, y - 1, 10, 2, "rgba(0,0,0,.28)");
+  r(x - 3, y - 4 - (s.jalan && langkah ? 1 : 0), 2, 4, "#2b2140");
+  r(x + 1, y - 4 - (s.jalan && !langkah ? 1 : 0), 2, 4, "#2b2140");
+  r(x - 4, y - 11 - naik, 8, 7, a.warna);
+  r(x - 4, y - 5 - naik, 8, 1, "rgba(0,0,0,.25)");
+  r(x - 5, y - 10 - naik, 1, 5, a.warna);
+  r(x + 4, y - 10 - naik, 1, 5, a.warna);
+  r(x - 5, y - 6 - naik, 1, 1, "#f1c9a5");
+  r(x + 4, y - 6 - naik, 1, 1, "#f1c9a5");
+  r(x - 3, y - 18 - naik, 6, 7, "#f1c9a5");
+  r(x - 3, y - 19 - naik, 6, 2, a.rambut);
+  r(x - 4, y - 18 - naik, 1, 4, a.rambut);
+  r(x + 3, y - 18 - naik, 1, 4, a.rambut);
+  r(x - 2, y - 15 - naik, 1, 1, "#2b2140");
+  r(x + 1, y - 15 - naik, 1, 1, "#2b2140");
+  if (s.bicara && langkah) r(x - 1, y - 13 - naik, 2, 1, "#a14a3a");
+  c.font = "8px 'Pixelify Sans'";
+  const w = Math.ceil(c.measureText(a.nama).width) + 5;
+  label(x - Math.round(w / 2), y + 2, a.nama);
+}
+
+function gambar(t) {
+  const H = tinggiAdegan();
+  if (kanvas.height !== H) kanvas.height = H;
+  c.imageSmoothingEnabled = false;
+  const M = RUANG.m, T = RUANG.t, S = RUANG.s, E = RUANG.e, B = RUANG.b;
+  for (const R of [M, S]) {
+    r(R.x, R.y, R.w, 26, "#e9a47c");
+    r(R.x, R.y + 22, R.w, 4, "#d68a62");
+    r(R.x, R.y + 26, R.w, 2, "#5a3a2e");
+    const kayu = R === M;
+    for (let i = 0; R.y + 28 + i * 6 < R.h; i++) {
+      r(R.x, R.y + 28 + i * 6, R.w, 6, kayu ? (i % 2 ? "#b9794a" : "#c0824f") : (i % 2 ? "#7fb08a" : "#88b993"));
+    }
+  }
+  r(T.x, T.y, T.w, 26, "#e9a47c");
+  r(T.x, T.y + 22, T.w, 4, "#d68a62");
+  r(T.x, T.y + 26, T.w, 2, "#5a3a2e");
+  for (let yy = T.y + 28; yy < T.h; yy += 8) {
+    for (let xx = T.x, j = 0; xx < T.x + T.w; xx += 8, j++) r(xx, yy, 8, 8, (j + yy / 8) % 2 ? "#9aa9c9" : "#8e9dc0");
+  }
+  r(E.x, E.y, E.w, 14, "#667599");
+  r(E.x, E.y + 14, E.w, 36, "#c9d0de");
+  for (let xx = 0; xx < E.w; xx += 16) r(xx, E.y + 14, 1, 36, "#b6bfd1");
+  if (urutanB.length) {
+    r(B.x, B.y, B.w, 14, "#d9b98f");
+    r(B.x, B.y + 14, B.w, 36, "#e8d9bb");
+    for (let i = 0; i < 6; i++) r(B.x, B.y + 14 + i * 6, B.w, 1, "#d6c39f");
+    r(10, B.y + 36, 236, 8, "#c68a56");
+    r(10, B.y + 44, 236, 4, "#8a5a3b");
+    tanaman(238, B.y + 22);
+    label(3, B.y + 17, "Ruang Tim Baru");
+  }
+  jendela(M.x + 28, M.y + 4);
+  jendela(S.x + 28, S.y + 4);
+  r(T.x + 4, T.y + 6, 3, 16, "#8a5a3b");
+  meja(M.x + 14, M.y + 54, 56);
+  layar(M.x + 20, M.y + 40, t);
+  layar(M.x + 46, M.y + 40, t + 700);
+  tanaman(M.x + 70, M.y + 70);
+  meja(S.x + 14, S.y + 54, 56);
+  layar(S.x + 20, S.y + 40, t + 300);
+  layar(S.x + 46, S.y + 40, t + 1100);
+  tanaman(S.x + 4, S.y + 70);
+  for (let dy = -9; dy <= 9; dy++) {
+    const half = Math.round(28 * Math.sqrt(1 - (dy / 10) * (dy / 10)));
+    r(128 - half, 66 + dy, half * 2, 1, dy > 6 ? "#8a5a3b" : "#c68a56");
+  }
+  for (const p of KURSI) kursiMakan(p[0], p[1] - 6);
+  tanaman(T.x + 4, T.y + 72);
+  rak(14, E.y + 20, t);
+  rak(30, E.y + 20, t + 500);
+  rak(228, E.y + 20, t + 900);
+  label(M.x + 3, M.y + 3, "Ruang Marketing");
+  label(T.x + 3, T.y + 3, "Ruang Rapat");
+  label(S.x + 3, S.y + 3, "Software House");
+  label(E.x + 3, E.y + 3, "Ruang Eksekutor");
+  const urut = Object.keys(AGEN).sort(function (a, b) { return ag[a].y - ag[b].y; });
+  for (const k of urut) orang(k, t);
+}
+
+function langkahkan(dt) {
+  const sekarang = Date.now();
   for (const k in AGEN) {
-    const t = keadaan[k].lokasi === "rapat" ? titikKursi(k) : titikRumah(k);
-    taruh(k, t.x, t.y, 0);
+    const s = ag[k];
+    let tx, ty;
+    if (s.lokasi === "rapat") {
+      tx = kursi(k)[0];
+      ty = kursi(k)[1];
+    } else {
+      const h = rumah(k);
+      tx = h[0] + (s.sibuk ? s.dx : 0);
+      ty = h[1] + (s.sibuk ? s.dy : 0);
+    }
+    const jarak = Math.hypot(tx - s.x, ty - s.y);
+    if (jarak > 0.6) {
+      const langkah = Math.min(jarak, KECEPATAN * dt);
+      s.x += ((tx - s.x) / jarak) * langkah;
+      s.y += ((ty - s.y) / jarak) * langkah;
+      s.jalan = true;
+    } else {
+      s.jalan = false;
+    }
+    const data = terbaru[k];
+    s.bicara = !!data && sekarang - data.waktu < BATAS_BICARA;
   }
+}
+
+let terakhirFrame = 0;
+function putar(t) {
+  if (t - terakhirFrame >= 33) {
+    langkahkan(Math.min(0.1, (t - terakhirFrame) / 1000));
+    terakhirFrame = t;
+    gambar(t);
+  }
+  requestAnimationFrame(putar);
 }
 
 function bicara(k) {
-  const s = keadaan[k];
-  if (s.lokasi !== "rapat") pergi(k, "rapat");
+  const s = ag[k];
+  s.lokasi = "rapat";
   clearTimeout(s.pulang);
-  s.pulang = setTimeout(function () { pergi(k, "rumah"); }, LAMA_DI_RAPAT);
+  s.pulang = setTimeout(function () { s.lokasi = "rumah"; }, LAMA_DI_RAPAT);
 }
 
 function iseng() {
   const nama = Object.keys(AGEN);
   const k = nama[Math.floor(Math.random() * nama.length)];
-  const s = keadaan[k];
+  const s = ag[k];
   if (s.lokasi !== "rumah" || s.sibuk || Math.random() > 0.45) return;
   s.sibuk = true;
-  const rumah = titikRumah(k);
-  const lebar = ruangEl[AGEN[k].ruang].getBoundingClientRect().width;
-  jalanKe(k, rumah.x + (Math.random() - 0.5) * lebar * 0.5, rumah.y + (Math.random() - 0.3) * 14);
-  setTimeout(function () {
-    if (s.lokasi === "rumah") pergi(k, "rumah");
-    s.sibuk = false;
-  }, 3800);
+  s.dx = (Math.random() - 0.5) * 36;
+  s.dy = Math.random() * 8 - 3;
+  setTimeout(function () { s.sibuk = false; }, 3800);
 }
 
 function setStatus(kelas, teks) {
@@ -315,57 +368,53 @@ function terapkan(baris, awal) {
 }
 
 function tampil() {
+  const skala = kanvas.clientWidth / LEBAR;
   const sekarang = Date.now();
-  const d = denah.getBoundingClientRect();
   let terkini = null;
   for (const k in AGEN) {
     if (terbaru[k] && (terkini === null || terbaru[k].waktu >= terbaru[terkini].waktu)) terkini = k;
   }
+  papan.style.left = (RUANG.t.x + 8) * skala + "px";
+  papan.style.top = 5 * skala + "px";
+  papan.style.width = (RUANG.t.w - 16) * skala + "px";
+  papan.style.fontSize = Math.max(9, 3.4 * skala) + "px";
   for (const k in AGEN) {
-    const el = keadaan[k].el;
+    const el = ag[k].bub;
     const data = terbaru[k];
     const umur = data ? sekarang - data.waktu : Infinity;
-    const gel = el.querySelector(".gelembung");
     if (data && k === terkini && umur < BATAS_GELEMBUNG) {
       let teks = data.teks.length > 170 ? data.teks.slice(0, 167) + "..." : data.teks;
       if (data.mulai) {
         const n = Math.max(1, Math.floor((sekarang - data.mulai) / 28));
         if (n < teks.length) teks = teks.slice(0, n);
       }
-      if (gel.textContent !== teks) gel.textContent = teks;
-      el.classList.add("tampil");
-      const kotak = el.getBoundingClientRect();
-      const tengah = kotak.left - d.left - denah.clientLeft + 42;
-      const lebar = gel.offsetWidth;
-      let geser = 0;
-      if (tengah - lebar / 2 < 4) geser = 4 - (tengah - lebar / 2);
-      else if (tengah + lebar / 2 > denah.clientWidth - 4) geser = denah.clientWidth - 4 - (tengah + lebar / 2);
-      gel.style.transform = "translateX(calc(-50% + " + geser + "px))";
-      gel.style.setProperty("--geser", geser + "px");
+      if (el.textContent !== teks) el.textContent = teks;
+      el.style.display = "block";
+      const lebar = el.offsetWidth;
+      const tinggi = el.offsetHeight;
+      const tengah = Math.min(Math.max(ag[k].x * skala, lebar / 2 + 2), adegan.clientWidth - lebar / 2 - 2);
+      el.style.left = tengah - lebar / 2 + "px";
+      el.style.top = Math.max(2, (ag[k].y - 26) * skala - tinggi) + "px";
     } else {
-      el.classList.remove("tampil");
+      el.style.display = "none";
     }
-    el.classList.toggle("bicara", umur < BATAS_BICARA);
   }
 }
 
 async function ambil(awal) {
   const q = awal ? "order=id.desc&limit=40" : "id=gt." + idTerakhir + "&order=id.asc&limit=100";
-  const r = await fetch(KONFIG.url + "/rest/v1/kantor_pesan?select=*&" + q, {
+  const res = await fetch(KONFIG.url + "/rest/v1/kantor_pesan?select=*&" + q, {
     headers: { apikey: KONFIG.kunci, Authorization: "Bearer " + KONFIG.kunci }
   });
-  if (!r.ok) throw new Error("kode " + r.status);
-  const baris = await r.json();
+  if (!res.ok) throw new Error("kode " + res.status);
+  const baris = await res.json();
   if (awal) baris.reverse();
   baris.forEach(function (b) { terapkan(b, awal); });
 }
 
 async function mulai() {
-  susun();
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(susun).observe(denah);
-  window.addEventListener("resize", susun);
-  window.addEventListener("load", susun);
-  setInterval(tampil, 150);
+  requestAnimationFrame(putar);
+  setInterval(tampil, 120);
   setInterval(iseng, 6000);
   if (typeof KONFIG === "undefined" || !KONFIG.url || !KONFIG.kunci) {
     setStatus("putus", "Belum diatur");
