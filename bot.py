@@ -598,13 +598,26 @@ def panggil_gemini(pesan, tools=None):
   raise Exception("Model lokal tidak merespons setelah beberapa percobaan.")
 
 
+def potong_kalimat(teks):
+  teks = teks.rstrip()
+  akhir = max(teks.rfind("."), teks.rfind("!"), teks.rfind("?"), teks.rfind("\n"))
+  if akhir > len(teks) * 0.5:
+    return teks[: akhir + 1].rstrip()
+  return teks
+
+
 def kirim_groq(payload, timeout=90):
   headers = {
       "Authorization": f"Bearer {GROQ_API_KEY}",
       "Content-Type": "application/json",
   }
+  payload = dict(payload)
+  payload.setdefault("reasoning_effort", "low")
   terakhir = ""
-  for percobaan in range(5):
+  diperbesar = False
+  percobaan = 0
+  while percobaan < 6:
+    percobaan += 1
     try:
       response = requests.post(
           GROQ_URL, headers=headers, json=payload, timeout=timeout
@@ -612,10 +625,26 @@ def kirim_groq(payload, timeout=90):
     except Exception as e:
       return f"Exception error: {bersihkan_error(e)}"
     if response.status_code == 200:
-      isi = response.json()["choices"][0]["message"].get("content") or ""
-      return isi.strip() or "(agen tidak memberi jawaban)"
+      pilihan = response.json()["choices"][0]
+      isi = (pilihan["message"].get("content") or "").strip()
+      if pilihan.get("finish_reason") == "length":
+        if not diperbesar:
+          diperbesar = True
+          payload["max_completion_tokens"] = min(
+              int(payload.get("max_completion_tokens", 1000)) * 2 + 500, 6000
+          )
+          continue
+        isi = potong_kalimat(isi)
+      return isi or "(agen tidak memberi jawaban)"
     terakhir = response.text[:300]
-    if response.status_code == 429 and percobaan < 4:
+    if (
+        response.status_code == 400
+        and "reasoning" in response.text.lower()
+        and "reasoning_effort" in payload
+    ):
+      del payload["reasoning_effort"]
+      continue
+    if response.status_code == 429 and percobaan < 5:
       cocok = re.search(r"try again in ([0-9.]+)(ms|s)", response.text)
       tunggu = 8.0
       if cocok:
@@ -2672,7 +2701,9 @@ def catat_belajar(nama, teks):
 
 
 def galat_groq(teks):
-  return teks.startswith(("Error API", "Exception error"))
+  return teks.startswith(
+      ("Error API", "Exception error", "(agen tidak memberi jawaban)")
+  )
 
 
 RESERVED_NAMA = {"pranowo", "manager", "chatai", "keputusan", "sistem", "rian"}
@@ -2797,7 +2828,10 @@ async def satu_siklus_rutin():
         f"\n\nWaktu sekarang: {sekarang_wib():%H:%M} WIB.\nAnggota tim saat"
         f" ini: {anggota_tim()}.\n\n{info_catatan}Obrolan sejauh ini:\n"
         f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
-        " Tulis satu pesan chat singkat yang menambah hal baru."
+        " Kalian belum mengerjakan apa pun secara nyata, jadi bicarakan ide,"
+        " rencana, atau pertanyaan, bukan hasil kerja yang diklaim selesai,"
+        " dan jangan menyebut teknologi atau nama alat yang tidak ada di bot"
+        " ini. Tulis satu pesan chat singkat yang menambah hal baru."
     )
     balasan = bersihkan_gaya(
         await asyncio.to_thread(
@@ -2962,7 +2996,7 @@ async def buat_laporan():
   aktivitas = [
       a
       for a in data.get("aktivitas", [])
-      if not sejak or a["waktu"] > sejak
+      if (not sejak or a["waktu"] > sejak) and a["jenis"] != "laporan"
   ][-30:]
   baris = [f"[{a['jenis']}] {a['agen']}: {a['teks'][:200]}" for a in aktivitas]
   catatan = []
@@ -2986,13 +3020,16 @@ async def buat_laporan():
       tugas,
       (
           "Tulis laporan untuk bos dalam Bahasa Indonesia. Gunakan hanya data"
-          " yang diberikan, jangan mengarang. Susun dengan judul bagian"
+          " yang diberikan, jangan mengarang. Hanya entri berjenis aksi yang"
+          " boleh ditulis sudah dikerjakan. Entri lain adalah obrolan atau"
+          " ide, jadi tulis sebagai dibahas atau diusulkan, dan jangan"
+          " menambah detail teknis yang tidak ada di data. Susun dengan judul bagian"
           " Ringkasan, Yang dikerjakan tim, Catatan belajar, lalu Usulan atau"
           " anggota baru kalau ada. Tanpa sapaan, tanpa tanda tangan, tanpa"
           " tabel, tanpa emoji."
       ),
       180,
-      900,
+      2500,
       0.4,
   )
   if galat_groq(hasil):
@@ -3018,7 +3055,7 @@ async def kirim_laporan(label):
     status = f"Email laporan gagal: {bersihkan_error(e)}"
   data["laporan_terakhir_waktu"] = datetime.now(timezone.utc).isoformat()
   simpan_data()
-  await catat_kantor("chatai", f"{subjek}. {status}", "aksi")
+  await catat_kantor("chatai", f"{subjek}. {status}", "laporan")
   await kirim_ke_pemilik(f"**Laporan {label}**\n{isi}\n\n{status}"[:1900])
   return status
 
@@ -3562,6 +3599,7 @@ async def kantor(
       )
       suhu = 0.85
       balasan = ""
+      galat_ai = False
       async with mengetik():
         for percobaan in range(3):
           balasan = bersihkan_gaya(
@@ -3575,6 +3613,10 @@ async def kantor(
                   suhu,
               )
           )
+          if galat_groq(balasan):
+            galat_ai = True
+            berhenti = True
+            break
           if not transkrip or not terlalu_mirip(
               balasan, [t for _, t in transkrip[-4:]]
           ):
@@ -3589,6 +3631,12 @@ async def kantor(
         if not berhenti:
           await jeda_berpikir(balasan)
       if berhenti:
+        if galat_ai:
+          await interaction.followup.send(
+              "**@sistem**: Layanan AI sedang bermasalah, diskusi dihentikan"
+              " lebih awal.",
+              allowed_mentions=tanpa_ping,
+          )
         break
       transkrip.append((peran, balasan))
       await interaction.followup.send(
@@ -3620,6 +3668,11 @@ async def kantor(
         700,
     )
     await jeda_berpikir(keputusan)
+  if galat_groq(keputusan):
+    keputusan = (
+        "Keputusan belum bisa dibuat karena layanan AI sedang bermasalah.\n"
+        "AKSI: tidak_ada"
+    )
   cocok = re.search(r"AKSI:\s*(.+)", keputusan)
   terpilih = []
   if cocok:
