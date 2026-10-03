@@ -32,6 +32,13 @@ h2{font-size:1.1rem;font-weight:600;color:#ffd9a0;margin:14px 0 6px}
 .pesan b{font-weight:600;margin-right:6px;color:var(--w,#f6ead2)}
 .pesan time{float:right;font-size:.72rem;color:#9c92c4}
 .kosong{padding:12px 0;color:#9c92c4}
+#formPerintah{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#formPerintah input{font:inherit;color:#f6ead2;background:#0d0a1f;border:3px solid #4b3a6e;padding:5px 8px;min-width:0}
+#inTeks{flex:1 1 220px}
+#inKode{flex:0 1 110px}
+#formPerintah button{font:inherit;font-weight:600;color:#2a1f3d;background:#ffb35c;border:3px solid #0d0a1f;box-shadow:3px 3px 0 #0d0a1f;padding:5px 14px;cursor:pointer}
+#formPerintah button:disabled{opacity:.5}
+#infoKirim{flex:1 0 100%;font-size:.8rem;color:#9c92c4}
 </style>
 </head>
 <body>
@@ -40,6 +47,13 @@ h2{font-size:1.1rem;font-weight:600;color:#ffd9a0;margin:14px 0 6px}
   <div class="status" id="status"><span class="titik"></span><span id="statusTeks">Menyambung</span></div>
 </div>
 <div class="kotak"><b id="tugasLabel">Tugas</b><span id="tugasTeks">Belum ada tugas hari ini.</span></div>
+<form class="kotak" id="formPerintah" autocomplete="off">
+  <b>Perintah</b>
+  <input id="inTeks" placeholder="Tulis perintah untuk tim" maxlength="400" required>
+  <input id="inKode" type="password" placeholder="Kode" maxlength="60" required>
+  <button id="tombolKirim" type="submit">Kirim</button>
+  <div id="infoKirim">Tim bekerja di Discord. Aksi berisiko tetap menunggu persetujuanmu di sana.</div>
+</form>
 <div id="adegan">
   <canvas id="kanvas" width="256" height="142"></canvas>
   <div class="papan" id="papan"><b>Keputusan tim</b><span id="papanTeks">Belum ada keputusan.</span></div>
@@ -74,6 +88,9 @@ const kanvas = document.getElementById("kanvas");
 const c = kanvas.getContext("2d");
 const papan = document.getElementById("papan");
 const urutanB = [];
+const efek = [];
+let menunggu = 0;
+let kerja = 0;
 const ag = {};
 const terbaru = {};
 let idTerakhir = 0;
@@ -197,6 +214,14 @@ function orang(k, t) {
   r(x - 2, y - 15 - naik, 1, 1, "#2b2140");
   r(x + 1, y - 15 - naik, 1, 1, "#2b2140");
   if (s.bicara && langkah) r(x - 1, y - 13 - naik, 2, 1, "#a14a3a");
+  if (menunggu && Date.now() - menunggu < 330000 && Math.floor(t / 400) % 2) {
+    r(x - 1, y - 28 - naik, 2, 5, "#ff6b6b");
+    r(x - 1, y - 22 - naik, 2, 2, "#ff6b6b");
+  }
+  if (k === "chatai" && kerja && Date.now() - kerja < 90000) {
+    const f = Math.floor(t / 250) % 3;
+    for (let i = 0; i < 3; i++) r(x - 5 + i * 4, y - 26 - naik - (i === f ? 2 : 0), 2, 2, "#ffd9a0");
+  }
   c.font = "8px 'Pixelify Sans'";
   const w = Math.ceil(c.measureText(a.nama).width) + 5;
   label(x - Math.round(w / 2), y + 2, a.nama);
@@ -251,23 +276,50 @@ function gambar(t) {
   }
   for (const p of KURSI) kursiMakan(p[0], p[1] - 6);
   tanaman(T.x + 4, T.y + 72);
-  rak(14, E.y + 20, t);
-  rak(30, E.y + 20, t + 500);
-  rak(228, E.y + 20, t + 900);
+  const tr = kerja && Date.now() - kerja < 90000 ? t * 3 : t;
+  rak(14, E.y + 20, tr);
+  rak(30, E.y + 20, tr + 500);
+  rak(228, E.y + 20, tr + 900);
   label(M.x + 3, M.y + 3, "Ruang Marketing");
   label(T.x + 3, T.y + 3, "Ruang Rapat");
   label(S.x + 3, S.y + 3, "Software House");
   label(E.x + 3, E.y + 3, "Ruang Eksekutor");
   const urut = Object.keys(AGEN).sort(function (a, b) { return ag[a].y - ag[b].y; });
   for (const k of urut) orang(k, t);
+  const kini = Date.now();
+  for (let i = efek.length - 1; i >= 0; i--) {
+    const e = efek[i];
+    const umur = (kini - e.t0) / 1000;
+    if (umur > 2.6) {
+      efek.splice(i, 1);
+      continue;
+    }
+    if (e.j === "surat") {
+      const ex = e.x + umur * 55, ey = e.y - 22 - umur * 10;
+      r(ex, ey, 10, 7, "#fff3d6");
+      r(ex, ey, 10, 1, "#2a1f3d");
+      r(ex, ey + 6, 10, 1, "#2a1f3d");
+      r(ex, ey, 1, 7, "#2a1f3d");
+      r(ex + 9, ey, 1, 7, "#2a1f3d");
+      r(ex + 2, ey + 2, 6, 1, "#c9b48a");
+    } else if (e.j === "paket") {
+      const ey = e.y - 24 - umur * 16;
+      r(e.x - 4, ey, 8, 8, "#c68a56");
+      r(e.x - 1, ey, 2, 8, "#e8c08a");
+      r(e.x - 4, ey, 8, 1, "#8a5a3b");
+    } else {
+      for (let n = 0; n < 4; n++) r(e.x - 8 + n * 5, e.y - 24 - umur * 12 - (n % 2) * 4, 2, 2, "#ffd9a0");
+    }
+  }
 }
 
 function langkahkan(dt) {
   const sekarang = Date.now();
+  const tunggu = menunggu && sekarang - menunggu < 330000;
   for (const k in AGEN) {
     const s = ag[k];
     let tx, ty;
-    if (s.lokasi === "rapat") {
+    if (s.lokasi === "rapat" || tunggu) {
       tx = kursi(k)[0];
       ty = kursi(k)[1];
     } else {
@@ -340,8 +392,26 @@ function terapkan(baris, awal) {
   } else if (baris.jenis === "rutin" && baris.agen === "sistem") {
     document.getElementById("tugasLabel").textContent = "Santai";
     document.getElementById("tugasTeks").textContent = baris.teks.replace(/^Obrolan santai di kantor tentang:\s*/, "");
+  } else if (baris.jenis === "approval") {
+    document.getElementById("tugasLabel").textContent = "Menunggu";
+    document.getElementById("tugasTeks").textContent = "Tim menunggu persetujuanmu di Discord";
   } else if (baris.jenis === "keputusan") {
     document.getElementById("papanTeks").textContent = baris.teks;
+  }
+  if (baris.jenis === "approval") {
+    menunggu = waktu;
+  } else if (baris.jenis === "persetujuan") {
+    menunggu = 0;
+  } else if (baris.jenis === "kerja") {
+    kerja = waktu;
+  } else if (baris.jenis === "aksi" && baris.agen === "chatai") {
+    kerja = 0;
+    menunggu = 0;
+    if (segar) {
+      const p = ag.chatai;
+      const j = /email|surat|laporan/i.test(baris.teks) ? "surat" : (/repo|github/i.test(baris.teks) ? "paket" : "kilau");
+      efek.push({ j: j, x: p.x, y: p.y, t0: Date.now() });
+    }
   }
   if (AGEN[baris.agen]) {
     terbaru[baris.agen] = { teks: baris.teks, waktu: waktu, mulai: segar ? Date.now() : 0 };
@@ -412,7 +482,55 @@ async function ambil(awal) {
   baris.forEach(function (b) { terapkan(b, awal); });
 }
 
+function siapkanForm() {
+  const form = document.getElementById("formPerintah");
+  const info = document.getElementById("infoKirim");
+  const tombol = document.getElementById("tombolKirim");
+  try {
+    document.getElementById("inKode").value = localStorage.getItem("kodeKantor") || "";
+  } catch (e) {
+  }
+  form.addEventListener("submit", async function (ev) {
+    ev.preventDefault();
+    if (typeof KONFIG === "undefined" || !KONFIG.url || !KONFIG.kunci) {
+      info.textContent = "Halaman belum diatur, isi konfig.js dulu.";
+      return;
+    }
+    const teks = document.getElementById("inTeks").value.trim();
+    const kode = document.getElementById("inKode").value;
+    if (teks.length < 3) return;
+    try {
+      localStorage.setItem("kodeKantor", kode);
+    } catch (e) {
+    }
+    tombol.disabled = true;
+    info.textContent = "Mengirim...";
+    try {
+      const res = await fetch(KONFIG.url + "/rest/v1/kantor_perintah", {
+        method: "POST",
+        headers: {
+          apikey: KONFIG.kunci,
+          Authorization: "Bearer " + KONFIG.kunci,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        },
+        body: JSON.stringify({ teks: teks, kode: kode })
+      });
+      if (res.ok) {
+        info.textContent = "Terkirim. Tim mulai bekerja dalam beberapa detik, lihat obrolannya di sini.";
+        document.getElementById("inTeks").value = "";
+      } else {
+        info.textContent = "Gagal mengirim (kode " + res.status + ").";
+      }
+    } catch (e) {
+      info.textContent = "Gagal mengirim, periksa koneksi.";
+    }
+    tombol.disabled = false;
+  });
+}
+
 async function mulai() {
+  siapkanForm();
   requestAnimationFrame(putar);
   setInterval(tampil, 120);
   setInterval(iseng, 6000);
