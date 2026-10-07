@@ -2573,11 +2573,10 @@ async def hapusbanner(interaction: discord.Interaction):
 
 WIB = timezone(timedelta(hours=int(os.getenv("TZ_OFFSET", "7"))))
 TOPIK_RUTIN = [
-    "evaluasi alur kerja tim minggu ini",
-    "ide fitur baru yang berguna untuk bot Discord",
-    "cara menjaga bot tetap ringan dan rapi",
-    "ide konten atau promosi untuk server",
-    "hal yang bisa diotomatiskan supaya bos tidak repot",
+    "tinjau hasil tindakan terakhir tim dan apa yang bisa diperbaiki",
+    "rencana tugas rutin yang bisa dikerjakan dengan aksi yang tersedia",
+    "cara merapikan repo dan jadwal yang sudah ada",
+    "ide pengingat atau laporan yang berguna untuk bos",
 ]
 GAYA_CHAT = (
     "Balas seperti chat singkat antar rekan kerja: santai tapi"
@@ -2589,6 +2588,9 @@ GAYA_CHAT = (
     " nama orang, tim, divisi, atau sistem lain di luar daftar anggota tim"
     " yang diberikan, dan jangan mengarang"
     " tenggat, angka, atau aturan hukum yang tidak disebut di perintah user."
+    " Selama diskusi belum ada yang dikerjakan, jadi jangan menulis sudah"
+    " selesai atau done. Pelaksanaan dilakukan Chat AI setelah keputusan, dan"
+    " hanya untuk aksi yang benar-benar tersedia."
 )
 WATAK_AGEN = {
     "pranowo": (
@@ -2703,6 +2705,14 @@ def catat_belajar(nama, teks):
   del daftar[:-8]
 
 
+def fakta_nyata():
+  return [
+      a["teks"][:160]
+      for a in data.get("aktivitas", [])
+      if a["jenis"] == "aksi"
+  ][-5:]
+
+
 def galat_groq(teks):
   return teks.startswith(
       ("Error API", "Exception error", "(agen tidak memberi jawaban)")
@@ -2804,6 +2814,8 @@ async def satu_siklus_rutin():
   if 0 <= sekarang_wib().hour < 6:
     return
   kanal_id = os.getenv("KANTOR_CHANNEL_ID")
+  fakta = fakta_nyata()
+  fakta_teks = "\n".join(f"- {f}" for f in fakta) or "(belum ada tindakan nyata)"
   tugas_lama = data.get("riwayat_tugas", [])[-3:]
   if tugas_lama and random.random() < 0.5:
     topik = "tindak lanjut tugas bos: " + random.choice(tugas_lama)
@@ -2829,7 +2841,11 @@ async def satu_siklus_rutin():
     tugas_agen = (
         f"Topik obrolan santai di kantor (bukan perintah dari bos): {topik}"
         f"\n\nWaktu sekarang: {sekarang_wib():%H:%M} WIB.\nAnggota tim saat"
-        f" ini: {anggota_tim()}.\n\n{info_catatan}Obrolan sejauh ini:\n"
+        f" ini: {anggota_tim()}.\nTindakan yang benar-benar terjadi"
+        f" belakangan ini:\n{fakta_teks}\nAksi yang benar-benar tersedia:"
+        f" {'; '.join(AKSI_KANTOR.values())}.\nJangan menyebut fitur,"
+        " dashboard, integrasi, atau pekerjaan yang tidak ada di daftar itu."
+        f"\n\n{info_catatan}Obrolan sejauh ini:\n"
         f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
         " Kalian belum mengerjakan apa pun secara nyata, jadi bicarakan ide,"
         " rencana, atau pertanyaan, bukan hasil kerja yang diklaim selesai,"
@@ -2858,14 +2874,14 @@ async def satu_siklus_rutin():
   if len(obrolan) < 2:
     return
   ringkas = "\n".join(f"{n}: {t}" for n, t in obrolan)
-  for peran, nama in peserta[:5]:
+  for peran, nama in (peserta[:5] if fakta else []):
     catatan_baru = bersihkan_gaya(
         await asyncio.to_thread(
             panggil_agen_groq,
             peran,
-            f"Obrolan tadi:\n{ringkas}\n\nTulis satu kalimat catatan belajar"
-            " pribadimu dari obrolan ini, yang berguna untuk pekerjaan"
-            " berikutnya.",
+            f"Obrolan tadi:\n{ringkas}\n\nFakta tindakan nyata:\n{fakta_teks}"
+            "\n\nTulis satu kalimat catatan belajar pribadimu yang bersumber"
+            " dari fakta tindakan nyata itu, bukan dari ide di obrolan.",
             "Tulis satu kalimat saja, tanpa emoji.",
             30,
             500,
@@ -3458,7 +3474,164 @@ def kumpulkan_data_nyata(tugas):
   return "\n".join(bagian)[:3500]
 
 
-AKSI_RISIKO = {"kirim_email_pemilik", "buat_repo_github", "bersihkan_sampah"}
+AKSI_REPO = {"arsipkan_repo", "hapus_repo", "edit_file_repo"}
+AKSI_RISIKO = {"kirim_email_pemilik", "buat_repo_github", "bersihkan_sampah"} | AKSI_REPO
+
+
+def header_github():
+  return {
+      "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+  }
+
+
+def ekstrak_target(tugas):
+  hasil = panggil_agen_groq(
+      "Asisten Ekstraksi",
+      f"Permintaan: {tugas}",
+      (
+          "Balas hanya satu objek JSON dengan kunci repo (nama repo atau"
+          " pemilik/repo yang disebut jelas di permintaan, kosongkan kalau"
+          " tidak ada), jalur (jalur file di repo kalau disebut, kosongkan"
+          " kalau tidak), dan instruksi (perubahan yang diminta pada file,"
+          " kosongkan kalau tidak ada). Jangan menebak."
+      ),
+      60,
+      600,
+      0.1,
+  )
+  cocok = re.search(r"\{.*\}", hasil, re.DOTALL)
+  if not cocok:
+    return {}
+  try:
+    obj = json.loads(cocok.group(0), strict=False)
+  except ValueError:
+    return {}
+  return obj if isinstance(obj, dict) else {}
+
+
+def siapkan_repo(nama_aksi, tugas):
+  if not os.getenv("GITHUB_TOKEN"):
+    return None, "GITHUB_TOKEN belum diisi di file .env."
+  target = ekstrak_target(tugas)
+  repo = str(target.get("repo") or "").strip()
+  jalur = str(target.get("jalur") or "").strip().lstrip("/")
+  instruksi = str(target.get("instruksi") or "").strip()
+  if (
+      not re.fullmatch(r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)?", repo)
+      or repo.split("/")[-1].lower() not in tugas.lower()
+  ):
+    return None, (
+        "Nama repo tidak jelas di permintaanmu, jadi tidak ada yang diubah."
+        " Tulis nama repo persis seperti di GitHub."
+    )
+  header = header_github()
+  if "/" not in repo:
+    akun = requests.get("https://api.github.com/user", headers=header, timeout=30)
+    if akun.status_code != 200:
+      return None, f"Token GitHub ditolak (kode {akun.status_code})."
+    repo = f"{akun.json()['login']}/{repo}"
+  info = requests.get(f"https://api.github.com/repos/{repo}", headers=header, timeout=30)
+  if info.status_code != 200:
+    return None, f"Repo {repo} tidak ditemukan atau token tidak punya akses."
+  if nama_aksi == "arsipkan_repo":
+    return f"ARSIPKAN repo {repo} (jadi hanya-baca, bisa dipulihkan).", {"repo": repo}
+  if nama_aksi == "hapus_repo":
+    return (
+        f"HAPUS PERMANEN repo {repo}. Tidak bisa dibatalkan.",
+        {"repo": repo},
+    )
+  if not jalur or ".." in jalur.split("/") or not instruksi:
+    return None, "Sebutkan nama file dan perubahan yang diinginkan."
+  asli = requests.get(
+      f"https://api.github.com/repos/{repo}/contents/{urllib.parse.quote(jalur)}",
+      headers={**header, "Accept": "application/vnd.github.raw"},
+      timeout=30,
+  )
+  if asli.status_code != 200:
+    return None, f"File {jalur} tidak ditemukan di repo {repo}."
+  if len(asli.text) > 20000:
+    return None, "File terlalu besar untuk diubah otomatis (maksimal 20 ribu karakter)."
+  hasil = kirim_groq(
+      {
+          "model": MODEL_KODE,
+          "messages": [
+              {
+                  "role": "system",
+                  "content": (
+                      "Ubah file sesuai instruksi. Balas hanya isi file lengkap"
+                      " hasil akhir dalam satu blok kode, tanpa penjelasan."
+                      " Jangan menulis komentar baru dan jangan menyertakan"
+                      " token, kata sandi, atau key."
+                  ),
+              },
+              {
+                  "role": "user",
+                  "content": f"Instruksi: {instruksi}\n\nIsi file {jalur}:\n{asli.text}",
+              },
+          ],
+          "temperature": 0.2,
+          "max_completion_tokens": 6000,
+      },
+      timeout=150,
+  )
+  if galat_groq(hasil):
+    return None, "Gagal menulis perubahan karena layanan AI sedang bermasalah."
+  blok = ekstrak_blok_kode(hasil)
+  baru = blok[0][1] if blok else hasil
+  if not baru.strip():
+    return None, "AI tidak menghasilkan isi file baru."
+  selisih = list(
+      difflib.unified_diff(asli.text.splitlines(), baru.splitlines(), lineterm="", n=0)
+  )
+  tambah = sum(1 for s in selisih if s.startswith("+") and not s.startswith("+++"))
+  hapus = sum(1 for s in selisih if s.startswith("-") and not s.startswith("---"))
+  if tambah + hapus == 0:
+    return None, "Tidak ada perubahan yang dihasilkan, file dibiarkan apa adanya."
+  return (
+      f"UBAH file {jalur} di repo {repo}: {instruksi[:120]}. Perubahan:"
+      f" +{tambah} dan -{hapus} baris.",
+      {"repo": repo, "jalur": jalur, "baru": baru},
+  )
+
+
+def jalankan_repo(nama_aksi, rincian):
+  header = header_github()
+  repo = rincian["repo"]
+  if nama_aksi == "arsipkan_repo":
+    res = requests.patch(
+        f"https://api.github.com/repos/{repo}",
+        headers=header,
+        json={"archived": True},
+        timeout=30,
+    )
+    if res.status_code == 200:
+      return (
+          f"Repo {repo} sudah diarsipkan (hanya-baca). Bisa dipulihkan lewat"
+          " Settings di GitHub."
+      )
+    return f"Gagal mengarsipkan {repo}: kode {res.status_code}, {res.text[:150]}"
+  if nama_aksi == "hapus_repo":
+    res = requests.delete(
+        f"https://api.github.com/repos/{repo}", headers=header, timeout=30
+    )
+    if res.status_code == 204:
+      return f"Repo {repo} sudah dihapus permanen."
+    if res.status_code in (403, 404):
+      return (
+          f"Repo {repo} belum dihapus (kode {res.status_code}). Token GitHub"
+          " butuh izin delete_repo. Tambahkan izin itu di pengaturan token,"
+          " lalu coba lagi."
+      )
+    return f"Gagal menghapus {repo}: kode {res.status_code}, {res.text[:150]}"
+  return push_ke_github(
+      repo,
+      rincian["jalur"],
+      rincian["baru"].encode("utf-8"),
+      f"Ubah {rincian['jalur']} via kantor",
+      "",
+  )
 
 
 def riset_web(pertanyaan):
@@ -3653,6 +3826,9 @@ AKSI_KANTOR = {
     "kirim_email_pemilik": "Tulis dan kirim email ke alamat email pemilik bot",
     "buat_repo_github": "Susun proyek, buat repo GitHub privat di akun pemilik, lalu unggah filenya",
     "riset_web": "Cari informasi terbaru di internet lalu rangkum hasilnya",
+    "arsipkan_repo": "Arsipkan repo GitHub milik pemilik (jadi hanya-baca, bisa dipulihkan)",
+    "hapus_repo": "Hapus permanen repo GitHub milik pemilik (butuh izin delete_repo)",
+    "edit_file_repo": "Ubah satu file di repo GitHub yang sudah ada sesuai instruksi",
 }
 
 
@@ -3810,7 +3986,8 @@ async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
       tugas_agen = (
           f"Topik dari user: {tugas}\n\nWaktu sekarang:"
           f" {sekarang_wib():%H:%M} WIB.\nAnggota tim saat ini:"
-          f" {anggota_tim()}.\n\n{info_data}\n\n{info_catatan}"
+          f" {anggota_tim()}.\nAksi yang benar-benar tersedia untuk Chat AI:"
+          f" {'; '.join(AKSI_KANTOR.values())}.\n\n{info_data}\n\n{info_catatan}"
           f"Obrolan sejauh ini:\n"
           f"{riwayat or '(belum ada)'}\n\nSekarang giliranmu sebagai {nama}."
           f" Fokus giliran ini: {fokus} Tulis satu pesan chat singkat."
@@ -3875,7 +4052,8 @@ async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
             " yang sudah terkirim atau selesai, karena pelaksanaannya"
             " dilakukan sesudah ini oleh rekan lain. Kalau perintah menyebut"
             " jam pengiriman, tulis bahwa pengiriman akan dijadwalkan pada"
-            " jam itu."
+            " jam itu. Kalau permintaan tidak cocok dengan aksi yang tersedia,"
+            " tulis bahwa itu belum bisa dikerjakan."
         ),
         (
             "Setelah itu, di baris baru, tulis AKSI: diikuti nama aksi dari"
@@ -3919,8 +4097,10 @@ async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
 
   hasil_riset = []
 
-  async def jalankan_aksi(nama):
+  async def jalankan_aksi(nama, rincian=None):
     try:
+      if nama in AKSI_REPO:
+        return await asyncio.to_thread(jalankan_repo, nama, rincian)
       if nama == "riset_web":
         teks_riset = await asyncio.to_thread(riset_web, tugas)
         if galat_groq(teks_riset):
@@ -3986,10 +4166,22 @@ async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
     if terpilih:
       terpilih.sort(key=lambda n: n != "riset_web")
       for nama in terpilih:
+        rincian = None
+        uraian = f"{AKSI_KANTOR[nama]}. Permintaan: {tugas[:150]}"
+        if nama in AKSI_REPO:
+          async with mengetik():
+            uraian_repo, rincian = await asyncio.to_thread(
+                siapkan_repo, nama, tugas
+            )
+          if uraian_repo is None:
+            await interaction.followup.send(
+                f"**@chatai**: {rincian}"[:1900], allowed_mentions=tanpa_ping
+            )
+            await catat_kantor("chatai", rincian, "info")
+            continue
+          uraian = uraian_repo
         if nama in AKSI_RISIKO:
-          setuju = await minta_persetujuan(
-              interaction, f"{AKSI_KANTOR[nama]}. Permintaan: {tugas[:150]}"
-          )
+          setuju = await minta_persetujuan(interaction, uraian)
           if not setuju:
             batal = "Aksi dibatalkan karena tidak disetujui."
             await interaction.followup.send(
@@ -3999,42 +4191,23 @@ async def jalankan_kantor(interaction, tugas, ronde, eksekusi):
             continue
         await catat_kantor("chatai", f"Mengerjakan: {AKSI_KANTOR[nama]}", "kerja")
         async with mengetik():
-          hasil = await jalankan_aksi(nama)
+          hasil = await jalankan_aksi(nama, rincian)
           await jeda_berpikir(hasil)
         await interaction.followup.send(
             f"**@chatai**: {hasil}"[:1900], allowed_mentions=tanpa_ping
         )
         await catat_kantor("chatai", hasil, "aksi")
     else:
-      perintah_chat = (
-          f"Permintaan pemilik bot: {tugas}\n\nKeputusan tim: {ringkasan}\n\n"
-          "Laksanakan sekarang memakai alat yang tersedia. Kalau diminta"
-          " membuat kode atau dokumen, tulis lengkap. Setelah selesai,"
-          " laporkan hasilnya dengan singkat."
+      pesan_jujur = (
+          "Aku belum punya aksi untuk permintaan ini, jadi belum ada yang"
+          " dikerjakan. Aksi yang tersedia: "
+          + "; ".join(AKSI_KANTOR.values())
+          + "."
       )
-      try:
-        async with mengetik():
-          jawaban, _ = await jalankan_agen(
-              f"{interaction.user.display_name}: {perintah_chat}", [], konteks
-          )
-          await jeda_berpikir(jawaban)
-        teks_chat, lampiran_chat = siapkan_balasan(jawaban)
-      except Exception as e:
-        await interaction.followup.send(
-            f"**@chatai**: Gagal menjalankan permintaan: {bersihkan_error(e)}",
-            allowed_mentions=tanpa_ping,
-        )
-      else:
-        bagian = pecah_balasan(teks_chat)
-        for i, isi in enumerate(bagian):
-          if i > 0:
-            async with mengetik():
-              await jeda_berpikir(isi)
-          awalan = "**@chatai**: " if i == 0 else ""
-          kwargs = {"allowed_mentions": tanpa_ping}
-          if i == len(bagian) - 1 and lampiran_chat:
-            kwargs["files"] = lampiran_chat
-          await interaction.followup.send(f"{awalan}{isi}"[:1900], **kwargs)
+      await interaction.followup.send(
+          f"**@chatai**: {pesan_jujur}"[:1900], allowed_mentions=tanpa_ping
+      )
+      await catat_kantor("chatai", pesan_jujur, "info")
   elif eksekusi:
     await interaction.followup.send(
         "Perintah dari tim tidak dijalankan karena hanya pemilik bot yang"
