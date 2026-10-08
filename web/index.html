@@ -6,7 +6,7 @@
 <title>Kantor RyHanC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=Archivo+Black&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0}
 html,body{background:#2a1f3d;color:#f6ead2;font-family:"Pixelify Sans",system-ui,sans-serif;line-height:1.4}
@@ -39,9 +39,36 @@ h2{font-size:1.1rem;font-weight:600;color:#ffd9a0;margin:14px 0 6px}
 #formPerintah button{font:inherit;font-weight:600;color:#2a1f3d;background:#ffb35c;border:3px solid #0d0a1f;box-shadow:3px 3px 0 #0d0a1f;padding:5px 14px;cursor:pointer}
 #formPerintah button:disabled{opacity:.5}
 #infoKirim{flex:1 0 100%;font-size:.8rem;color:#9c92c4}
+.pembuka{position:fixed;inset:0;z-index:50;background:#0b0d12;transition:transform .9s cubic-bezier(.7,0,.2,1)}
+.pembuka.keluar{transform:translateY(-100%)}
+.pb-scene{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 7vw;opacity:0;z-index:0}
+.pb-scene.lama{opacity:1;z-index:1}
+.pb-scene.aktif{opacity:1;z-index:2;animation:pbBuka .9s cubic-bezier(.7,0,.2,1) both}
+@keyframes pbBuka{from{clip-path:circle(0 at 85% 92%)}to{clip-path:circle(160% at 85% 92%)}}
+.pb-label{font:600 .72rem/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;opacity:.75;margin-bottom:1.2rem}
+.pb-av{width:clamp(84px,24vw,140px);image-rendering:pixelated;margin-bottom:1rem;opacity:0}
+.pb-scene.aktif .pb-av{animation:pbFokus .9s cubic-bezier(.2,.9,.2,1) .25s both}
+@keyframes pbFokus{from{opacity:0;filter:blur(14px);transform:translateY(30px) scale(.9)}to{opacity:1;filter:none;transform:none}}
+.pb-nama{font-family:"Archivo Black",Impact,sans-serif;text-transform:uppercase;line-height:.92;letter-spacing:-.02em}
+.pb-h{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.06em}
+.pb-h>span{display:inline-block;transform:translateY(115%)}
+.pb-scene.aktif .pb-h>span{animation:pbNaik .9s cubic-bezier(.2,.9,.2,1) both;animation-delay:calc(var(--i)*60ms + 300ms)}
+@keyframes pbNaik{to{transform:none}}
+.pb-peran{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-size:clamp(1.4rem,6vw,2.6rem);margin-top:1rem;opacity:0}
+.pb-scene.aktif .pb-peran{animation:pbMuncul .8s ease-out 1.05s both}
+@keyframes pbMuncul{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.pb-batang{position:absolute;left:7vw;right:7vw;bottom:4vh;display:flex;gap:6px;z-index:5}
+.pb-batang span{flex:1;height:3px;background:rgba(255,255,255,.3);mix-blend-mode:difference;overflow:hidden}
+.pb-batang i{display:block;height:100%;width:0;background:#fff}
+.pb-batang .on i{animation:pbIsi 2.5s linear forwards}
+.pb-batang .lewat i{width:100%}
+@keyframes pbIsi{to{width:100%}}
+.pb-lewati{position:absolute;top:16px;right:16px;z-index:5;font:600 .85rem "Pixelify Sans",system-ui,sans-serif;color:#fff;mix-blend-mode:difference;background:none;border:2px solid #fff;padding:6px 14px;cursor:pointer}
+.pb-ulang{font:inherit;color:#f6ead2;background:#1c1838;border:3px solid #0d0a1f;box-shadow:inset 0 0 0 2px #4b3a6e;padding:6px 12px;cursor:pointer;margin-top:14px}
 </style>
 </head>
 <body>
+<div class="pembuka" id="pembuka" aria-label="Pembukaan"></div>
 <div class="atas">
   <h1>Kantor RyHanC</h1>
   <div class="status" id="status"><span class="titik"></span><span id="statusTeks">Menyambung</span></div>
@@ -60,6 +87,7 @@ h2{font-size:1.1rem;font-weight:600;color:#ffd9a0;margin:14px 0 6px}
 </div>
 <h2>Obrolan terbaru</h2>
 <div class="log" id="log" aria-live="polite"><div class="kosong" id="kosong">Menunggu obrolan pertama dari bot.</div></div>
+<button class="pb-ulang" id="ulangPembuka" type="button">Putar ulang pembukaan</button>
 
 <script src="konfig.js"></script>
 <script>
@@ -482,6 +510,150 @@ async function ambil(awal) {
   baris.forEach(function (b) { terapkan(b, awal); });
 }
 
+const PEKERJA = [
+  { k: "pranowo", nama: "Pranowo", peran: "marketing manager", bg: "#ff5a1f", fg: "#14161d", warna: "#e8a317", rambut: "#4a2c1a" },
+  { k: "manager", nama: "Manager", peran: "software house manager", bg: "#1f3dff", fg: "#ffffff", warna: "#2f9e6f", rambut: "#1b1b2a" },
+  { k: "chatai", nama: "Chat AI", peran: "eksekutor", bg: "#10172e", fg: "#ffffff", warna: "#3b82c4", rambut: "#8a8aa3" },
+  { k: "recruit", nama: "Recruit", peran: "analis sumber daya", bg: "#f4efe6", fg: "#14161d", rambut: "#7a3b1d" },
+  { k: "devops", nama: "Devops", peran: "devops engineer", bg: "#0f8a5f", fg: "#ffffff", rambut: "#2b2b55" },
+  { k: "sentiment", nama: "Sentiment", peran: "analis sentimen", bg: "#6a2cff", fg: "#ffffff", rambut: "#a8742a" }
+];
+
+function pbWarna(k) {
+  return "hsl(" + (Array.from(k).reduce(function (a, ch) { return a + ch.charCodeAt(0) * 37; }, 0) % 360) + " 55% 52%)";
+}
+
+function pbAvatar(kanv, warna, rambut) {
+  const g = kanv.getContext("2d");
+  const p = function (x, y, w, hh, w2) { g.fillStyle = w2; g.fillRect(x, y, w, hh); };
+  p(4, 24, 12, 2, "rgba(0,0,0,.25)");
+  p(6, 20, 3, 5, "#2b2140");
+  p(11, 20, 3, 5, "#2b2140");
+  p(4, 11, 12, 10, warna);
+  p(4, 19, 12, 1, "rgba(0,0,0,.25)");
+  p(2, 12, 2, 7, warna);
+  p(16, 12, 2, 7, warna);
+  p(2, 18, 2, 2, "#f1c9a5");
+  p(16, 18, 2, 2, "#f1c9a5");
+  p(5, 2, 10, 10, "#f1c9a5");
+  p(5, 0, 10, 4, rambut);
+  p(4, 2, 1, 6, rambut);
+  p(15, 2, 1, 6, rambut);
+  p(7, 7, 2, 2, "#2b2140");
+  p(11, 7, 2, 2, "#2b2140");
+  p(9, 10, 2, 1, "#a14a3a");
+}
+
+function siapkanPembuka() {
+  const pb = document.getElementById("pembuka");
+  document.getElementById("ulangPembuka").addEventListener("click", function () {
+    try {
+      sessionStorage.removeItem("pembukaSelesai");
+    } catch (e) {
+    }
+    location.reload();
+  });
+  let sudah = false;
+  try {
+    sudah = sessionStorage.getItem("pembukaSelesai") === "1";
+  } catch (e) {
+  }
+  if (sudah || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    pb.remove();
+    return;
+  }
+  const daftar = [{ judul: "Kantor", peran: "kenalan dengan timnya", bg: "#0b0d12", fg: "#f4efe6", label: "RyHanC" }].concat(
+    PEKERJA.map(function (p, i) {
+      return { judul: p.nama, peran: p.peran, bg: p.bg, fg: p.fg, label: "anggota " + (i + 1) + " / " + PEKERJA.length, p: p };
+    })
+  );
+  document.documentElement.style.overflow = "hidden";
+  const adeganP = [];
+  const batangP = [];
+  const bar = document.createElement("div");
+  bar.className = "pb-batang";
+  daftar.forEach(function (d) {
+    const s = document.createElement("section");
+    s.className = "pb-scene";
+    s.style.background = d.bg;
+    s.style.color = d.fg;
+    const lab = document.createElement("div");
+    lab.className = "pb-label";
+    lab.textContent = d.label;
+    s.appendChild(lab);
+    if (d.p) {
+      const kv = document.createElement("canvas");
+      kv.width = 20;
+      kv.height = 26;
+      kv.className = "pb-av";
+      pbAvatar(kv, d.p.warna || pbWarna(d.p.k), d.p.rambut);
+      s.appendChild(kv);
+    }
+    const nm = document.createElement("div");
+    nm.className = "pb-nama";
+    nm.style.fontSize = "min(" + Math.floor(88 / (d.judul.length * 0.66)) + "vw, 9rem)";
+    Array.from(d.judul).forEach(function (ch, i) {
+      const luar = document.createElement("span");
+      luar.className = "pb-h";
+      const dalam = document.createElement("span");
+      dalam.style.setProperty("--i", i);
+      dalam.textContent = ch === " " ? "\u00a0" : ch;
+      luar.appendChild(dalam);
+      nm.appendChild(luar);
+    });
+    s.appendChild(nm);
+    const per = document.createElement("div");
+    per.className = "pb-peran";
+    per.textContent = d.peran;
+    s.appendChild(per);
+    pb.appendChild(s);
+    adeganP.push(s);
+    const b = document.createElement("span");
+    b.appendChild(document.createElement("i"));
+    bar.appendChild(b);
+    batangP.push(b);
+  });
+  const lewati = document.createElement("button");
+  lewati.className = "pb-lewati";
+  lewati.type = "button";
+  lewati.textContent = "Lewati";
+  pb.appendChild(lewati);
+  pb.appendChild(bar);
+  let n = 0;
+  let pewaktu = null;
+  function tampilkan(i) {
+    const lama = adeganP[n];
+    const baru = adeganP[i];
+    if (lama !== baru) {
+      lama.classList.remove("aktif");
+      lama.classList.add("lama");
+      setTimeout(function () { lama.classList.remove("lama"); }, 1000);
+    }
+    baru.classList.remove("lama");
+    baru.classList.add("aktif");
+    batangP.forEach(function (b, j) {
+      b.className = j < i ? "lewat" : (j === i ? "on" : "");
+    });
+    n = i;
+  }
+  function selesai() {
+    clearInterval(pewaktu);
+    try {
+      sessionStorage.setItem("pembukaSelesai", "1");
+    } catch (e) {
+    }
+    pb.classList.add("keluar");
+    document.documentElement.style.overflow = "";
+    setTimeout(function () { pb.remove(); }, 1000);
+  }
+  lewati.addEventListener("click", selesai);
+  tampilkan(0);
+  pewaktu = setInterval(function () {
+    if (n + 1 >= daftar.length) selesai();
+    else tampilkan(n + 1);
+  }, 2500);
+}
+
 function siapkanForm() {
   const form = document.getElementById("formPerintah");
   const info = document.getElementById("infoKirim");
@@ -530,6 +702,7 @@ function siapkanForm() {
 }
 
 async function mulai() {
+  siapkanPembuka();
   siapkanForm();
   requestAnimationFrame(putar);
   setInterval(tampil, 120);
