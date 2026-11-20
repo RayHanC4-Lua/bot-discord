@@ -5667,29 +5667,72 @@ def spotify_baca(link):
   return judul, artis
 
 
-def spotify_unduh_mp3(kata_cari, mutu):
+SPOTIFY_ABAIKAN = {
+    "feat", "ft", "featuring", "with", "the", "a", "an", "and", "of",
+    "official", "audio", "remastered", "remaster", "version", "prod",
+    "video", "lyrics", "lyric",
+}
+SPOTIFY_BURUK = {
+    "cover", "live", "remix", "slowed", "sped", "reverb", "nightcore",
+    "karaoke", "instrumental", "mashup",
+}
+
+
+def spotify_kata(teks):
+  return re.findall(r"[a-z0-9]+", str(teks).lower())
+
+
+def spotify_cocok(entri, judul, artis):
+  teks = " ".join(
+      str(entri.get(k) or "") for k in ("title", "uploader", "channel")
+  )
+  kata_hasil = set(spotify_kata(teks))
+  kata_judul = set(spotify_kata(judul))
+  if (set(spotify_kata(entri.get("title"))) & SPOTIFY_BURUK) - kata_judul:
+    return False
+  inti = re.sub(r"[\(\[].*?[\)\]]", " ", judul)
+  wajib = [k for k in spotify_kata(inti) if k not in SPOTIFY_ABAIKAN]
+  if not all(k in kata_hasil for k in wajib):
+    return False
+  if not artis:
+    return True
+  for nama in artis.split(","):
+    inti_nama = [k for k in spotify_kata(nama) if k not in SPOTIFY_ABAIKAN]
+    if all(k in kata_hasil for k in inti_nama):
+      return True
+  return False
+
+
+def spotify_unduh_mp3(kata_cari, mutu, judul="", artis=""):
   sumber = [
-      ("YouTube", f"ytsearch1:{kata_cari}"),
-      ("SoundCloud", "scsearch1:" + re.sub(r"\s+audio$", "", kata_cari)),
+      ("YouTube", "ytsearch5:" + kata_cari),
+      ("SoundCloud", "scsearch5:" + re.sub(r"\s+audio$", "", kata_cari)),
   ]
   galat = []
   for nama, target in sumber:
-    opsi = opsi_dasar()
-    opsi["format"] = "bestaudio/best"
-    opsi["postprocessors"] = [{
-        "key": "FFmpegExtractAudio",
-        "preferredcodec": "mp3",
-        "preferredquality": str(mutu),
-    }]
     try:
+      opsi_cari = opsi_dasar()
+      opsi_cari["extract_flat"] = True
+      with yt_dlp.YoutubeDL(opsi_cari) as ydl:
+        hasil = ydl.extract_info(target, download=False)
+      kandidat = [
+          e
+          for e in (hasil.get("entries") or [])
+          if e and spotify_cocok(e, judul, artis)
+      ]
+      if not kandidat:
+        galat.append(f"{nama}: tidak ada hasil yang cocok")
+        continue
+      alamat = kandidat[0].get("url") or kandidat[0].get("webpage_url")
+      opsi = opsi_dasar()
+      opsi["format"] = "bestaudio/best"
+      opsi["postprocessors"] = [{
+          "key": "FFmpegExtractAudio",
+          "preferredcodec": "mp3",
+          "preferredquality": str(mutu),
+      }]
       with yt_dlp.YoutubeDL(opsi) as ydl:
-        info = ydl.extract_info(target, download=True)
-        entri = info.get("entries")
-        if entri is not None:
-          entri = [e for e in entri if e]
-          if not entri:
-            raise Exception("lagu tidak ditemukan")
-          info = entri[0]
+        info = ydl.extract_info(alamat, download=True)
         path = info["requested_downloads"][0]["filepath"]
     except Exception as e:
       galat.append(f"{nama}: {bersihkan_error(e)[:70]}")
@@ -5703,9 +5746,9 @@ def spotify_unduh_mp3(kata_cari, mutu):
   raise Exception("; ".join(galat))
 
 
-def spotify_unduh_bertahap(kata_cari, batas):
+def spotify_unduh_bertahap(kata_cari, batas, judul="", artis=""):
   for mutu in TINGKAT_AUDIO:
-    path = spotify_unduh_mp3(kata_cari, mutu)
+    path = spotify_unduh_mp3(kata_cari, mutu, judul, artis)
     if os.path.getsize(path) <= batas:
       return path, mutu
     os.remove(path)
@@ -5733,7 +5776,7 @@ async def spotify_mp3(interaction: discord.Interaction, link: str):
   kata_cari = f"{artis} {judul} audio".strip()
   try:
     path, mutu = await asyncio.to_thread(
-        spotify_unduh_bertahap, kata_cari, batas_upload(interaction)
+        spotify_unduh_bertahap, kata_cari, batas_upload(interaction), judul, artis
     )
   except Exception as e:
     await interaction.followup.send(f"Gagal mengunduh: {bersihkan_error(e)}")
