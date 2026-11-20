@@ -5668,18 +5668,39 @@ def spotify_baca(link):
 
 
 def spotify_unduh_mp3(kata_cari, mutu):
-  opsi = opsi_dasar()
-  opsi["format"] = "bestaudio/best"
-  opsi["postprocessors"] = [{
-      "key": "FFmpegExtractAudio",
-      "preferredcodec": "mp3",
-      "preferredquality": str(mutu),
-  }]
-  with yt_dlp.YoutubeDL(opsi) as ydl:
-    info = ydl.extract_info(f"ytsearch1:{kata_cari}", download=True)
-    if "entries" in info:
-      info = info["entries"][0]
-    return info["requested_downloads"][0]["filepath"]
+  sumber = [
+      ("YouTube", f"ytsearch1:{kata_cari}"),
+      ("SoundCloud", "scsearch1:" + re.sub(r"\s+audio$", "", kata_cari)),
+  ]
+  galat = []
+  for nama, target in sumber:
+    opsi = opsi_dasar()
+    opsi["format"] = "bestaudio/best"
+    opsi["postprocessors"] = [{
+        "key": "FFmpegExtractAudio",
+        "preferredcodec": "mp3",
+        "preferredquality": str(mutu),
+    }]
+    try:
+      with yt_dlp.YoutubeDL(opsi) as ydl:
+        info = ydl.extract_info(target, download=True)
+        entri = info.get("entries")
+        if entri is not None:
+          entri = [e for e in entri if e]
+          if not entri:
+            raise Exception("lagu tidak ditemukan")
+          info = entri[0]
+        path = info["requested_downloads"][0]["filepath"]
+    except Exception as e:
+      galat.append(f"{nama}: {bersihkan_error(e)[:70]}")
+      continue
+    if nama == "SoundCloud" and (info.get("duration") or 0) <= 45:
+      if os.path.exists(path):
+        os.remove(path)
+      galat.append("SoundCloud: hasil hanya cuplikan")
+      continue
+    return path
+  raise Exception("; ".join(galat))
 
 
 def spotify_unduh_bertahap(kata_cari, batas):
