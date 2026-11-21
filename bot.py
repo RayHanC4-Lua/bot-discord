@@ -5703,7 +5703,10 @@ def spotify_cocok(entri, judul, artis):
   return False
 
 
-def spotify_unduh_mp3(kata_cari, mutu, judul="", artis=""):
+SPOTIFY_NIGHTCORE = "aresample=44100,asetrate=55125,aresample=44100"
+
+
+def spotify_unduh_mp3(kata_cari, mutu, judul="", artis="", efek=""):
   sumber = [
       ("YouTube", "ytsearch5:" + kata_cari),
       ("SoundCloud", "scsearch5:" + re.sub(r"\s+audio$", "", kata_cari)),
@@ -5731,6 +5734,10 @@ def spotify_unduh_mp3(kata_cari, mutu, judul="", artis=""):
           "preferredcodec": "mp3",
           "preferredquality": str(mutu),
       }]
+      if efek == "nightcore":
+        opsi["postprocessor_args"] = {
+            "extractaudio": ["-af", SPOTIFY_NIGHTCORE]
+        }
       with yt_dlp.YoutubeDL(opsi) as ydl:
         info = ydl.extract_info(alamat, download=True)
         path = info["requested_downloads"][0]["filepath"]
@@ -5746,9 +5753,9 @@ def spotify_unduh_mp3(kata_cari, mutu, judul="", artis=""):
   raise Exception("; ".join(galat))
 
 
-def spotify_unduh_bertahap(kata_cari, batas, judul="", artis=""):
+def spotify_unduh_bertahap(kata_cari, batas, judul="", artis="", efek=""):
   for mutu in TINGKAT_AUDIO:
-    path = spotify_unduh_mp3(kata_cari, mutu, judul, artis)
+    path = spotify_unduh_mp3(kata_cari, mutu, judul, artis, efek)
     if os.path.getsize(path) <= batas:
       return path, mutu
     os.remove(path)
@@ -5758,8 +5765,17 @@ def spotify_unduh_bertahap(kata_cari, batas, judul="", artis=""):
 
 
 @tree.command(name="spotify", description="Ubah link lagu Spotify jadi MP3")
-@app_commands.describe(link="Link satu lagu dari Spotify")
-async def spotify_mp3(interaction: discord.Interaction, link: str):
+@app_commands.describe(
+    link="Link satu lagu dari Spotify", efek="Efek audio, kosongkan untuk asli"
+)
+@app_commands.choices(
+    efek=[app_commands.Choice(name="Nightcore", value="nightcore")]
+)
+async def spotify_mp3(
+    interaction: discord.Interaction,
+    link: str,
+    efek: app_commands.Choice[str] = None,
+):
   cocok = SPOTIFY_POLA.search(link)
   if not cocok:
     await interaction.response.send_message(
@@ -5776,7 +5792,12 @@ async def spotify_mp3(interaction: discord.Interaction, link: str):
   kata_cari = f"{artis} {judul} audio".strip()
   try:
     path, mutu = await asyncio.to_thread(
-        spotify_unduh_bertahap, kata_cari, batas_upload(interaction), judul, artis
+        spotify_unduh_bertahap,
+        kata_cari,
+        batas_upload(interaction),
+        judul,
+        artis,
+        efek.value if efek else "",
     )
   except Exception as e:
     await interaction.followup.send(f"Gagal mengunduh: {bersihkan_error(e)}")
@@ -5784,7 +5805,8 @@ async def spotify_mp3(interaction: discord.Interaction, link: str):
   nama = f"{judul} - {artis}" if artis else judul
   try:
     await interaction.followup.send(
-        f"{nama[:150]} ({mutu} kbps)", file=discord.File(path)
+        f"{nama[:150]} ({mutu} kbps{', nightcore' if efek else ''})",
+        file=discord.File(path),
     )
   finally:
     if os.path.exists(path):
