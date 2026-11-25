@@ -6245,17 +6245,35 @@ SERVER_ID_LAMA = 1464581081822138370
 
 
 def gudang_id_lagu(guild_id, user_id):
+  berubah = False
+  lama_semua = []
   lama = data.get("id_fitur")
   if isinstance(lama, dict) and isinstance(lama.get("daftar"), list):
-    tujuan = data.setdefault("id_lagu", {}).setdefault(str(SERVER_ID_LAMA), [])
-    for entri in lama["daftar"]:
-      if entri not in tujuan:
-        tujuan.append(entri)
+    lama_semua.extend(lama["daftar"])
     data.pop("id_fitur", None)
+    berubah = True
+  for kunci in ("id_lagu", "id_lagu_pribadi"):
+    nilai = data.get(kunci)
+    if isinstance(nilai, dict):
+      for k in list(nilai):
+        if not isinstance(nilai[k], list):
+          nilai[k] = []
+          berubah = True
+    else:
+      if isinstance(nilai, list):
+        lama_semua.extend(nilai)
+      data[kunci] = {}
+      berubah = True
+  if lama_semua:
+    tujuan = data["id_lagu"].setdefault(str(SERVER_ID_LAMA), [])
+    for entri in lama_semua:
+      if isinstance(entri, (str, int)) and str(entri) not in map(str, tujuan):
+        tujuan.append(str(entri))
+  if berubah:
     simpan_data()
   if guild_id:
-    return data.setdefault("id_lagu", {}).setdefault(str(guild_id), [])
-  return data.setdefault("id_lagu_pribadi", {}).setdefault(str(user_id), [])
+    return data["id_lagu"].setdefault(str(guild_id), [])
+  return data["id_lagu_pribadi"].setdefault(str(user_id), [])
 
 
 def pecah_id_lagu(entri):
