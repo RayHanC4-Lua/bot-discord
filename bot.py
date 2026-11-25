@@ -5723,10 +5723,14 @@ def spotify_unduh_mp3(kata_cari, mutu, judul="", artis="", efek=""):
           for e in (hasil.get("entries") or [])
           if e and spotify_cocok(e, judul, artis)
       ]
-      if not kandidat:
-        galat.append(f"{nama}: tidak ada hasil yang cocok")
-        continue
-      alamat = kandidat[0].get("url") or kandidat[0].get("webpage_url")
+    except Exception as e:
+      galat.append(f"{nama}: {bersihkan_error(e)[:70]}")
+      continue
+    if not kandidat:
+      galat.append(f"{nama}: tidak ada hasil yang cocok")
+      continue
+    for urutan, satu in enumerate(kandidat, start=1):
+      alamat = satu.get("url") or satu.get("webpage_url")
       opsi = opsi_dasar()
       opsi["format"] = "bestaudio/best"
       opsi["postprocessors"] = [{
@@ -5738,19 +5742,20 @@ def spotify_unduh_mp3(kata_cari, mutu, judul="", artis="", efek=""):
         opsi["postprocessor_args"] = {
             "extractaudio": ["-af", SPOTIFY_NIGHTCORE]
         }
-      with yt_dlp.YoutubeDL(opsi) as ydl:
-        info = ydl.extract_info(alamat, download=True)
-        path = info["requested_downloads"][0]["filepath"]
-    except Exception as e:
-      galat.append(f"{nama}: {bersihkan_error(e)[:70]}")
-      continue
-    if nama == "SoundCloud" and (info.get("duration") or 0) <= 45:
-      if os.path.exists(path):
-        os.remove(path)
-      galat.append("SoundCloud: hasil hanya cuplikan")
-      continue
-    return path
-  raise Exception("; ".join(galat))
+      try:
+        with yt_dlp.YoutubeDL(opsi) as ydl:
+          info = ydl.extract_info(alamat, download=True)
+          path = info["requested_downloads"][0]["filepath"]
+      except Exception as e:
+        galat.append(f"{nama} #{urutan}: {bersihkan_error(e)[:60]}")
+        continue
+      if nama == "SoundCloud" and (info.get("duration") or 0) <= 45:
+        if os.path.exists(path):
+          os.remove(path)
+        galat.append(f"{nama} #{urutan}: hasil hanya cuplikan")
+        continue
+      return path
+  raise Exception("; ".join(galat[:6]))
 
 
 def spotify_unduh_bertahap(kata_cari, batas, judul="", artis="", efek=""):
