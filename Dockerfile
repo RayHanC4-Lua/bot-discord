@@ -12,5 +12,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY bot.py background.png font.ttf .
+COPY modul ./modul
 
 CMD ["python", "bot.py"]

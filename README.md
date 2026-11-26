@@ -35,13 +35,22 @@ EMAIL_PEMILIK=
 GITHUB_TOKEN=
 ```
 
-3. Isi PEMILIK_ID di bot.py dengan ID Discord pemilik bot.
+3. Isi PEMILIK_ID di modul/inti.py dengan ID Discord pemilik bot.
 
 4. Jalankan bot:
 
 ```
 python bot.py
 ```
+
+## Struktur kode
+
+- bot.py: titik masuk, memuat semua modul lalu menjalankan bot
+- modul/inti.py: konfigurasi, data, client, dan fungsi bantu umum
+- modul/acara.py: event Discord seperti pesan, member, dan on_ready
+- modul/ai.py, ai_alat.py, obrolan.py, balasan.py: chat AI beserta alatnya
+- modul/kantor/: tim agen AI (rapat /kantor, staf, jadwal, laporan, aksi)
+- modul lainnya: satu file per fitur, misalnya tiket, toko, pengingat, spotify
 
 ## Perintah khusus pemilik
 
